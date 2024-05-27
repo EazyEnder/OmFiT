@@ -15,6 +15,23 @@ def computeCenters(outlines):
         centers.append(center)
     return centers
 
+import cv2
+def outlines_list(masks):
+    """ get outlines of masks as a list to loop over for plotting """
+    outpix=[]
+    for n in np.unique(masks)[1:]:
+        mn = masks==n
+        if mn.sum() > 0:
+            contours = cv2.findContours(mn.astype(np.uint8), mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
+            contours = contours[-2]
+            cmax = np.argmax([c.shape[0] for c in contours])
+            pix = contours[cmax].astype(int).squeeze()
+            if len(pix)>4:
+                outpix.append(pix)
+            else:
+                outpix.append(np.zeros((0,2)))
+    return outpix
+
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import time

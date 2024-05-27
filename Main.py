@@ -8,6 +8,8 @@ from utils import plotTracking, serializeMasks
 import time
 import subprocess
 
+print(__name__)
+
 OMNI_DIR = Path(omnipose.__file__).parent.parent
 BASE_DIR = os.path.join(OMNI_DIR,'data')
 USE_GPU = core.use_gpu()
@@ -46,7 +48,7 @@ class OmniposeRun():
             t = int(f.split(".")[0].split("t")[-1].split("xy")[0])
             t_index.append(t)
         files = files[np.argsort(t_index)]
-        files = files[110:140:1]
+        files = files[::1]
         self.files = files
         self.imgs = [io.imread(f) for f in files]
 

@@ -1,11 +1,9 @@
 import numpy as np
 from sort_utils import *
 import time
-from utils import printProgressBar
+from utils import printProgressBar, outlines_list
 import multiprocessing
 import copy
-from scipy.ndimage import rotate
-from cellpose_omni import utils
 
 #Intersection over union threshold
 IOU_THRESHOLD_FORCE = 0.5
@@ -251,7 +249,7 @@ class Cell():
         #list of spaces, one for each new cell child
         rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors)
         for space in rslt_spaces:
-            cell = Cell(self.clip,space,self.time,utils.outlines_list(space)[0])
+            cell = Cell(self.clip,space,self.time,outlines_list(space)[0])
             self.clip.addCell(self.time,cell)
         self.clip.removeCell(self.time,self)
             
