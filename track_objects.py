@@ -4,6 +4,8 @@ import time
 from utils import printProgressBar
 import multiprocessing
 import copy
+from scipy.ndimage import rotate
+from cellpose_omni import utils
 
 #Intersection over union threshold
 IOU_THRESHOLD_FORCE = 0.5
@@ -23,7 +25,7 @@ def verifyShape(cell,cell2):
         return False
     return True
 
-def createCellsUsingMask(mask,outlines,time):
+def createCellsUsingMask(clip,mask,outlines,time):
     ids = np.unique(mask)
     cells = []
     for id in ids:
@@ -35,7 +37,7 @@ def createCellsUsingMask(mask,outlines,time):
             for j in range(np.shape(mask)[1]):
                 if(flags[i,j]):
                     space[i,j]=1
-        c = Cell(space,time,outlines[id-1])
+        c = Cell(clip,space,time,outlines[id-1])
         cells.append(c)
     return cells
 
@@ -51,7 +53,7 @@ class Clip():
         states = []
         for m in range(len(masks)):
             printProgressBar(m,len(masks))
-            states.append(createCellsUsingMask(masks[m],outlines[m],times[m]))
+            states.append(createCellsUsingMask(self,masks[m],outlines[m],times[m]))
         self.states = states
         net_time = time.time() - tic
 
@@ -63,7 +65,13 @@ class Clip():
         net_time = time.time() - tic
         print(f'Cells Tracking done ({np.round(net_time,2)}s)')
 
-        #self.mergeSporadicsCells()
+        print("Verify")
+        tic = time.time()
+        self.verifyCells()
+        self.clearLinks()
+        self.linkCells(iou_threshold=iou_threshold)
+        net_time = time.time() - tic
+        print(f'Cells Verif done ({np.round(net_time,2)}s)')
 
         print("FAM Weights")
         fam_weights = []
@@ -77,6 +85,65 @@ class Clip():
         net_time = time.time() - tic
         self.fam_weights = fam_weights
         print(f'FAM Computing done({np.round(net_time,2)}s)')
+
+    def getAllCells(self):
+        cells = []
+        times = []
+        for m in range(len(self.states)):
+            for cell in self.states[m]:
+                cells.append(cell)
+                times.append(m)
+        return (times,cells)
+    
+    def removeCell(self,time,cell):
+        cells = self.states[time-1]
+        cells.remove(cell)
+
+    def addCell(self,time,cell):
+        self.states[time-1].append(cell)
+
+    def verifyCells(self):
+        times,allcells = self.getAllCells()
+        cells = copy.deepcopy(allcells)
+        for i,cell in enumerate(cells):
+            if(cell.parent is None):
+                continue
+            if(cell.parent.parent is None):
+                continue
+            if(len(cell.children) < 2):
+                if(len(cell.children) >= 1):
+                    if(len(cell.children[0].children) < 2):
+                        continue
+                else:
+                    continue
+            parent2 = cell.parent.parent
+            up_chi = parent2.children
+            ancestor=2
+            if(len(up_chi) < 2):
+                if(parent2.parent is None):
+                    continue
+                ancestor += 1
+                up_chi = parent2.parent.children
+                if(len(up_chi)<2):
+                    continue
+            children_surf = np.sum([child.surface for child in up_chi])
+            if(cell.surface < children_surf*.8):
+                continue
+            self.states[times[i]][self.getCellIndex(cell,times[i])].forcedDivide(ancestor=ancestor)
+
+    def getCellIndex(self,cell,time):
+        for i,c2 in enumerate(self.states[time]):
+            if(np.linalg.norm(c2.center-cell.center) < 0.01 and
+               abs(c2.surface-cell.surface) < 0.01):
+                return i
+        return None
+    
+    def clearLinks(self):
+        for s in self.states:
+            for c in s:
+                c.parent = None
+                c.children = []
+            
 
     def linkCells(self,iou_threshold=0.2):
 
@@ -108,35 +175,144 @@ class Clip():
                     for tpl in l:
                         cell = self.states[i+k][tpl[0]]
                         
-                        cell.parent = self.states[i+k-1][tpl[1]]
-                        cell.parent.children.append(cell)
-                        cell.color = cell.parent.color
+                        if(tpl[1] >= 0):
+                            cell.parent = self.states[i+k-1][tpl[1]]
+                            cell.parent.children.append(cell)
+                            cell.color = cell.parent.color
             i += len(list(DATA.values()))
             DATA.clear()
-
-    def mergeSporadicsCells(self):
-        for i in range(len(self.times)):
-            s = self.states[i]
-            for c in s:
-                getCtrdGradient()
-                
-
-
 
 
 class Cell():
     """Contains the information about one cell at one time point"""
-    def __init__(self,space,time,outline):
+    def __init__(self,clip,space,time,outline):
+        self.clip = clip
         self.time = time
         #space is the mask matrix  with only this cell (0: empty, 1: cell)
         self.space = np.clip(space,0,1)
         self.outline = outline
+        self.divisions = None
+        self.surface = self.getSurface()
         self.rect = self.getRect(outline)
+        self.direction = self.getDirection(outline)
         self.center = None
         self.center = self.computeCenter()
         self.parent = None
         self.color = np.random.rand(3,)*0.6+0.4
         self.children = []
+
+    def getSurface(self):
+        empty_area = 0
+        filled_area = 0
+        total_area = np.shape(self.space)[0]*np.shape(self.space)[1]
+        for i in range(np.shape(self.space)[0]):
+            for j in range(np.shape(self.space)[1]):
+                if(self.space[i,j] <= 0):
+                    empty_area += 1
+                else:
+                    filled_area += 1
+        return filled_area/total_area
+
+    def getDirection(self, outline):
+        max_rect_dist = np.max(self.rect)
+        dist = []
+        for i in range(len(outline)):
+            p1 = outline[i]
+            local_dist = []
+            for j in range(i+1,len(outline)):
+                p2 = outline[j]
+                d = np.linalg.norm(p1-p2)
+                if(d < max_rect_dist*.1):
+                    continue
+                local_dist.append([j,d])
+            if(len(local_dist) > 0):
+                local_dist = np.array(local_dist)
+                sorted_local_dist = local_dist[np.argsort(local_dist.T[1])][-1]
+                dist.append([(i,int(sorted_local_dist[0])),sorted_local_dist[1]])
+        raw_indexes = np.array([d[0] for d in dist])
+        raw_distances = np.array([d[1] for d in dist])
+        args_indices = np.argsort(raw_distances)
+        indexes = raw_indexes[args_indices][-1]
+        return np.array(outline[indexes[0]]-outline[indexes[1]])
+    
+    def forcedDivide(self,ancestor):
+        if(self.parent is None or self.parent.parent is None):
+            return
+        parent2 = self
+        for _ in range(ancestor):
+            parent2 = parent2.parent
+        divs = parent2.getDivisions()
+        inters = [div[0] for div in divs]
+        div_vectors = [div[1] for div in divs]
+        #sorted_indices = np.argsort(inters[:,0])
+        #inters = inters[sorted_indices]
+        div_vectors = div_vectors
+
+        #list of spaces, one for each new cell child
+        rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors)
+        for space in rslt_spaces:
+            cell = Cell(self.clip,space,self.time,utils.outlines_list(space)[0])
+            self.clip.addCell(self.time,cell)
+        self.clip.removeCell(self.time,self)
+            
+
+    def cutSpaceUsingLines(self,inters,dirs):
+        spaces = [copy.deepcopy(self.space)]
+        for k in range(len(inters)):
+            I = inters[k]
+            D = dirs[k]
+            m_spaces = []
+            for space in spaces:
+                n1_space = np.zeros(np.shape(space))
+                n2_space = np.zeros(np.shape(space))
+                for i in range(len(space)):
+                    for j in range(len(space[i])):
+                        P = np.array([i,j])- I
+                        angle = np.arctan2(P[1], P[0]) - np.arctan2(D[1], D[0])
+                        s = space[i,j]
+                        if(s <= 0):
+                            continue
+                        if(angle < 0):
+                            n1_space[i,j] = 1
+                        else:
+                            n2_space[i,j] = 1
+                m_spaces.append(n1_space)
+                m_spaces.append(n2_space)
+            space = m_spaces
+        return spaces
+            
+            
+
+    
+    def getDivisions(self,force=False):
+        if(len(self.children) <= 1):
+            return None
+        if(not(self.divisions is None) and not(force)):
+            return self.divisions
+        #[ (Intersection, Direction) , ... ]
+        divs = []
+        for i in range(len(self.children)):
+            c1 = self.children[i]
+            for j in range(i+1,len(self.children)):
+                c2 = self.children[j]
+                if(np.linalg.norm(c1.center-c2.center) < 0.01*np.max(self.rect)):
+                    continue
+                ce_1 = c1.center
+                ce_2 = c2.center
+                dir_1 = c1.direction
+                dir_2 = c2.direction
+                n1 = ce_1[1]-ce_2[1]-dir_2[1]/dir_2[0]*(ce_1[0]-ce_2[0])
+                n2 = dir_1[0]*dir_2[1]/dir_2[0]-dir_1[1]
+                lambda_1 = n1/n2
+                lambda_2 = (ce_1[0]-ce_2[0]+lambda_1*dir_1[0])/dir_2[0]
+                intersection = ce_1+lambda_1*dir_1
+                if lambda_1*lambda_2 < 0:
+                    dir_2 = -dir_2
+                direction = dir_1+dir_2
+                divs.append((intersection,direction))
+        self.divisions = divs
+        return divs
+
 
     def getRect(self, outline):
         T = np.array(outline).T
@@ -186,7 +362,11 @@ class Cell():
                 score.append(0.)
             else:
                 score.append(s)
-        parent = cells[np.argmax(score)]
+
+        if(np.max(score) <= 0):
+            return (cell_index,-1)
+        
+        #parent = cells[np.argmax(score)]
         #self.parent = parent
         #self.parent.children.append(self)
         #self.color = self.parent.color
