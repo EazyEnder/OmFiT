@@ -4,7 +4,8 @@ import os
 from cellpose_omni import io, utils, models, core
 import omnipose
 from track_objects import Clip
-from utils import plotTracking, serializeMasks
+from utils import  serializeMasks
+from plot import plotTracking
 import time
 from GlobalStorage import setRUN, getRUN
 
@@ -46,7 +47,7 @@ class OmniposeRun():
             t = int(f.split(".")[0].split("t")[-1].split("xy")[0])
             t_index.append(t)
         files = files[np.argsort(t_index)]
-        files = files[70:108:1]
+        files = files[::1]
         self.files = files
         self.imgs = [io.imread(f) for f in files]
 

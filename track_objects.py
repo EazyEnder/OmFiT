@@ -67,13 +67,14 @@ class Clip():
         print(f'Cells Tracking done ({np.round(net_time,2)}s)')
 
     def post(self):
-        print("Verify")
-        tic = time.time()
-        self.verifyCells()
-        self.clearLinks()
-        self.linkCells(iou_threshold=self.iou_threshold)
-        net_time = time.time() - tic
-        print(f'Cells Verif done ({np.round(net_time,2)}s)')
+        for i in range(3):
+            print("Verify " + str(i))
+            tic = time.time()
+            self.verifyCells()
+            self.clearLinks()
+            self.linkCells(iou_threshold=self.iou_threshold)
+            net_time = time.time() - tic
+            print(f'Cells Verif done ({np.round(net_time,2)}s)')
 
         print("FAM Weights")
         fam_weights = []
@@ -114,7 +115,10 @@ class Clip():
 
     def verifyCells(self):
         times,allcells = self.getAllCells()
-        cells = copy.deepcopy(allcells)
+        cells = copy.copy(allcells)
+        index_todivide = []
+        for i in times:
+            index_todivide.append([])
         for i,cell in enumerate(cells):
             if(cell.parent is None):
                 continue
@@ -147,11 +151,14 @@ class Clip():
                 continue
             if(len(up_chi)<2):
                 continue
-            print("Pre "+str(times[i]) + " wth " + str(ancestor))
+            print("Pre "+str(times[i]) + " wth ancestor " + str(ancestor))
             children_surf = np.sum([child.surface for child in up_chi])
             if(cell.surface < children_surf*.6):
                 continue
-            self.states[times[i]][self.getCellIndex(cell,times[i])].forcedDivide(ancestor=ancestor)
+            index_todivide[times[i]].append(self.getCellIndex(cell,times[i]))
+        for t in times:
+            for c in index_todivide[t]:
+                self.states[t][c].forcedDivide(ancestor=ancestor)
 
     def getCellIndex(self,cell,time):
         for i,c2 in enumerate(self.states[time]):
@@ -257,10 +264,17 @@ class Cell():
         return np.array(outline[indexes[0]]-outline[indexes[1]])
     
     def forcedDivide(self,ancestor):
+        if(self.parent is None):
+            print("Warning: Cell cant divide bcs has no parent")
+            return
         parent = self
         for _ in range(ancestor):
+            if(parent.parent is None):
+                print("Warning: Cell cant divide bcs ancestor " + str(ancestor) + " doesnt exist")
             parent = parent.parent
         divs = parent.getDivisions()
+        if(divs is None):
+            return
         inters = [div[0] for div in divs]
         div_vectors = [div[1] for div in divs]
         #sorted_indices = np.argsort(inters[:,0])
@@ -270,6 +284,12 @@ class Cell():
         #list of spaces, one for each new cell child
         rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors,f_inter=parent.center)
         for space in rslt_spaces:
+            if(np.sum(space) == 0.):
+                print("Warning, a cell is removed bcs mask is empty")
+                continue
+            if(len(outlines_list(space)[0]) < 1):
+                print("Warning, a cell is removed bcs has no outlines")
+                continue
             cell = Cell(getRUN().clip,space,self.time,outlines_list(space)[0])
             getRUN().clip.addCell(self.time,cell)
         getRUN().clip.removeCell(self.time,self)
