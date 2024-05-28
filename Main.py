@@ -6,9 +6,7 @@ import omnipose
 from track_objects import Clip
 from utils import plotTracking, serializeMasks
 import time
-import subprocess
-
-print(__name__)
+from GlobalStorage import setRUN, getRUN
 
 OMNI_DIR = Path(omnipose.__file__).parent.parent
 BASE_DIR = os.path.join(OMNI_DIR,'data')
@@ -48,7 +46,7 @@ class OmniposeRun():
             t = int(f.split(".")[0].split("t")[-1].split("xy")[0])
             t_index.append(t)
         files = files[np.argsort(t_index)]
-        files = files[::1]
+        files = files[70:108:1]
         self.files = files
         self.imgs = [io.imread(f) for f in files]
 
@@ -62,6 +60,8 @@ class OmniposeRun():
             outlines.append(utils.outlines_list(mask))
         self.outlines = outlines   
 
+        setRUN(self)
+
         self.save()
 
     def makeFilm():
@@ -70,6 +70,9 @@ class OmniposeRun():
 
     def launchTracking(self, iou_threshold=0.3):
         self.clip = Clip(self.masks,self.outlines,iou_threshold=iou_threshold)
+        setRUN(self)
+        getRUN().clip.post()
+        self.clip = getRUN().clip
         plotTracking(self.imgs,self.clip,BASE_DIR)
         print("Tracking done")
 

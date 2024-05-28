@@ -33,7 +33,9 @@ def outlines_list(masks):
     return outpix
 
 import matplotlib.image as mpimg
+from GlobalStorage import getRUN
 import matplotlib.pyplot as plt
+from cellpose_omni import plot
 import time
 def plotTracking(imgs,clip,export_path):
     print("Plot")
@@ -46,8 +48,10 @@ def plotTracking(imgs,clip,export_path):
         plt.imshow(img)
         centers = np.array([c.center for c in cells]).T
         colors = [c.color for c in cells]
-        plotLineUsingFAM(clip,i)
-        plt.scatter(centers[1],centers[0],c=colors)
+        #plotLineUsingFAM(clip,i)
+        overlay = plot.mask_overlay(img, getRUN().clip.buildMask(i).astype(int))
+        plt.imshow(overlay, interpolation='none')
+        #plt.scatter(centers[1],centers[0],c=colors)
         plt.savefig(export_path+"/export_"+str(i)+".jpg")
     net_time = time.time() - tic
     print(f'Plot done ({np.round(net_time,2)}s)')

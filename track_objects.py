@@ -2,6 +2,7 @@ import numpy as np
 from sort_utils import *
 import time
 from utils import printProgressBar, outlines_list
+from GlobalStorage import setRUN,getRUN
 import multiprocessing
 import copy
 
@@ -45,6 +46,8 @@ class Clip():
         if(times is None):
             times=range(1,len(masks)+1)
         self.times = times
+        self.iou_threshold = iou_threshold
+        self.masks = masks
         
         print("Create Cells")
         tic = time.time() 
@@ -63,19 +66,20 @@ class Clip():
         net_time = time.time() - tic
         print(f'Cells Tracking done ({np.round(net_time,2)}s)')
 
+    def post(self):
         print("Verify")
         tic = time.time()
         self.verifyCells()
         self.clearLinks()
-        self.linkCells(iou_threshold=iou_threshold)
+        self.linkCells(iou_threshold=self.iou_threshold)
         net_time = time.time() - tic
         print(f'Cells Verif done ({np.round(net_time,2)}s)')
 
         print("FAM Weights")
         fam_weights = []
         tic = time.time() 
-        for m in range(len(masks)):
-            printProgressBar(m,len(masks))
+        for m in range(len(self.masks)):
+            printProgressBar(m,len(self.masks))
             l = []
             for cell in self.states[m]:
                 l.append((cell,cell.computeFAMWeight()))
@@ -83,6 +87,13 @@ class Clip():
         net_time = time.time() - tic
         self.fam_weights = fam_weights
         print(f'FAM Computing done({np.round(net_time,2)}s)')
+
+    def buildMask(self,time):
+        spaces = [c.space for c in self.states[time]]
+        mask = np.zeros(np.shape(spaces[0]))
+        for i,s in enumerate(spaces):
+            mask = mask+s*(i+1)
+        return mask
 
     def getAllCells(self):
         cells = []
@@ -98,6 +109,7 @@ class Clip():
         cells.remove(cell)
 
     def addCell(self,time,cell):
+        print("Post " + str(time-1))
         self.states[time-1].append(cell)
 
     def verifyCells(self):
@@ -115,17 +127,29 @@ class Clip():
                 else:
                     continue
             parent2 = cell.parent.parent
+            parent_used = parent2
             up_chi = parent2.children
             ancestor=2
-            if(len(up_chi) < 2):
-                if(parent2.parent is None):
-                    continue
-                ancestor += 1
-                up_chi = parent2.parent.children
-                if(len(up_chi)<2):
-                    continue
+            flag = False
+            while(ancestor < 5 and not(flag)):
+                if(len(up_chi) < 2):
+                    if(parent_used.parent is None):
+                        flag = True
+                        break
+                    ancestor += 1
+                    parent_used = parent_used.parent
+                    up_chi = parent_used.children
+                    if(len(up_chi)>=2):
+                        break
+                else:
+                    break
+            if flag:
+                continue
+            if(len(up_chi)<2):
+                continue
+            print("Pre "+str(times[i]) + " wth " + str(ancestor))
             children_surf = np.sum([child.surface for child in up_chi])
-            if(cell.surface < children_surf*.8):
+            if(cell.surface < children_surf*.6):
                 continue
             self.states[times[i]][self.getCellIndex(cell,times[i])].forcedDivide(ancestor=ancestor)
 
@@ -184,7 +208,6 @@ class Clip():
 class Cell():
     """Contains the information about one cell at one time point"""
     def __init__(self,clip,space,time,outline):
-        self.clip = clip
         self.time = time
         #space is the mask matrix  with only this cell (0: empty, 1: cell)
         self.space = np.clip(space,0,1)
@@ -234,12 +257,10 @@ class Cell():
         return np.array(outline[indexes[0]]-outline[indexes[1]])
     
     def forcedDivide(self,ancestor):
-        if(self.parent is None or self.parent.parent is None):
-            return
-        parent2 = self
+        parent = self
         for _ in range(ancestor):
-            parent2 = parent2.parent
-        divs = parent2.getDivisions()
+            parent = parent.parent
+        divs = parent.getDivisions()
         inters = [div[0] for div in divs]
         div_vectors = [div[1] for div in divs]
         #sorted_indices = np.argsort(inters[:,0])
@@ -247,26 +268,31 @@ class Cell():
         div_vectors = div_vectors
 
         #list of spaces, one for each new cell child
-        rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors)
+        rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors,f_inter=parent.center)
         for space in rslt_spaces:
-            cell = Cell(self.clip,space,self.time,outlines_list(space)[0])
-            self.clip.addCell(self.time,cell)
-        self.clip.removeCell(self.time,self)
+            cell = Cell(getRUN().clip,space,self.time,outlines_list(space)[0])
+            getRUN().clip.addCell(self.time,cell)
+        getRUN().clip.removeCell(self.time,self)
             
 
-    def cutSpaceUsingLines(self,inters,dirs):
+    def cutSpaceUsingLines(self,inters,dirs,f_inter):
         spaces = [copy.deepcopy(self.space)]
         for k in range(len(inters)):
             I = inters[k]
+            if(not(f_inter is None)):
+                I = f_inter
             D = dirs[k]
             m_spaces = []
+            angle_dir = np.arctan2(D[1], D[0])
+            if(angle_dir < 0):
+                angle_dir += np.pi
             for space in spaces:
                 n1_space = np.zeros(np.shape(space))
                 n2_space = np.zeros(np.shape(space))
                 for i in range(len(space)):
                     for j in range(len(space[i])):
                         P = np.array([i,j])- I
-                        angle = np.arctan2(P[1], P[0]) - np.arctan2(D[1], D[0])
+                        angle = np.arctan2(P[1], P[0]) - angle_dir
                         s = space[i,j]
                         if(s <= 0):
                             continue
@@ -274,9 +300,12 @@ class Cell():
                             n1_space[i,j] = 1
                         else:
                             n2_space[i,j] = 1
-                m_spaces.append(n1_space)
-                m_spaces.append(n2_space)
-            space = m_spaces
+                if(np.sum(n1_space) > 0):
+                    m_spaces.append(n1_space)
+                if(np.sum(n2_space) > 0):
+                    m_spaces.append(n2_space)
+            spaces = m_spaces
+            print(I)
         return spaces
             
             
@@ -304,9 +333,20 @@ class Cell():
                 lambda_1 = n1/n2
                 lambda_2 = (ce_1[0]-ce_2[0]+lambda_1*dir_1[0])/dir_2[0]
                 intersection = ce_1+lambda_1*dir_1
-                if lambda_1*lambda_2 < 0:
-                    dir_2 = -dir_2
-                direction = dir_1+dir_2
+                if lambda_1*lambda_2 > 0:
+                    dir_2 = -np.array(dir_2)
+
+                if(np.linalg.norm(dir_1) == 0):
+                    direction = dir_2
+                elif(np.linalg.norm(dir_2) == 0):
+                    direction = dir_1
+                else:
+                    direction = dir_1/np.linalg.norm(dir_1)+dir_2/np.linalg.norm(dir_2)
+                    
+                if(np.linalg.norm(direction) == 0):
+                    direction = np.array([dir_1[1],-dir_1[0]])
+                
+                direction = direction/np.linalg.norm(direction)
                 divs.append((intersection,direction))
         self.divisions = divs
         return divs
