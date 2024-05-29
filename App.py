@@ -3,6 +3,7 @@ from tkinter import filedialog
 import tkinter as tk
 from view import ConsoleFrame
 from view.TrackingFrame import TrackingFrame
+from view.NormalizeFrame import NormalizeFrame
 if __name__ == '__main__':
     from Main import OmniposeRun, BASE_DIR
 from threading import Thread
@@ -76,6 +77,9 @@ class App(customtkinter.CTk):
 
         self.tracking_frame = TrackingFrame(self)
         self.tracking_frame.grid(row=0,column=1, padx=10, pady=(10, 10), sticky="nsew")
+
+        self.norm_frame = NormalizeFrame(self)
+        self.norm_frame.grid(row=1,column=1, padx=10, pady=(10, 10), sticky="nsew")
 
 import multiprocessing
 if __name__ == '__main__':
