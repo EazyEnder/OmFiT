@@ -6,8 +6,8 @@ from math import floor
 from ij.gui import Roi
 from java.awt import Rectangle
   
-sourceDir = "/home/irina/Documents/train_need_prepro/masks/"
-targetDir = "/home/irina/Documents/train_need_prepro/outputs/"
+sourceDir = "C:/Users/abc/Documents/Stage24/PreTraining/masks/"
+targetDir = "C:/Users/abc/Documents/Stage24/PreTraining/outputs/"
 
 IS_MASKS = True
 ITERATION = 1
@@ -23,8 +23,10 @@ def containsDataSet(datasets,name):
 
 def process(f11,f12,f21,f22):
 	#Scale
+	global ITERATION
 	if(f11.width*f11.height!=f12.width*f12.height or f21.width*f21.height!=f22.width*f22.height):
-		print("Error: img dimension is not constant in a dataset")
+		print("Error: img dimension is not constant in a dataset: "+str(ITERATION))
+		ITERATION += 1
 		return
 	
 	sf11 = f11
@@ -50,7 +52,7 @@ def process(f11,f12,f21,f22):
 		for i,mask in enumerate(toprocess):
 			mp = mask.getProcessor()
 			bp = before[i].getProcessor()
-			maximum = offset_index
+			maximum = 0
 			for x in range((mask.width)):
 				for y in range((mask.height)):
 					b_px_val = 0
@@ -71,7 +73,7 @@ def process(f11,f12,f21,f22):
 							continue
 					maximum = max(maximum,b_px_val)
 					mp.putPixel(x,y,int(offset_index+b_px_val))
-			offset_index = maximum
+			offset_index += maximum
 	
 	#Combine
 	scombiner = StackCombiner()
@@ -81,7 +83,6 @@ def process(f11,f12,f21,f22):
 	ip = ImagePlus("gray", scombiner.combineHorizontally(is_left, is_right))
 	
 	#Save
-	global ITERATION
 	
 	fs = FileSaver(ip)
 	name = targetDir+str(ITERATION)
@@ -101,7 +102,6 @@ def cropImg(img,name,crops):
 		if c.split("_")[0] == name.split("_")[0]:
 			crop_path = c
 	crop_file = open(os.path.join(sourceDir,crop_path), "r")
-	
 	x0 = 0
 	y0 = 0
 	x1 = img.width
@@ -115,7 +115,7 @@ def cropImg(img,name,crops):
 			y1 = float(coo[3])
 			break
 	ip = img.getProcessor()
-	ip.setRoi(int(x0),int(y0),int(x1-x0),int(y1-y0));
+	ip.setRoi(int(y0),int(x0),int(y1-y0),int(x1-x0));
 	return ImagePlus("cropped_img",ip.crop())
 	
 
@@ -147,7 +147,7 @@ def main(folder):
 	#Get files
 	for filename in os.listdir(folder):
 		dset = filename.split("_")[0]
-		if(filename.split("_")[1] == "crop" or filename.split("_")[1] == "crop.txt"):
+		if(filename.split("_")[1] == "crop" or filename.split("_")[1] == "crop.txt" or filename.split("_")[1] == "crops.txt" or filename.split("_")[1] == "crops") :
 			if(not(filename in crops)):
 				crops.append(filename)
 			continue

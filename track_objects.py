@@ -67,7 +67,7 @@ class Clip():
         print(f'Cells Tracking done ({np.round(net_time,2)}s)')
 
     def post(self):
-        for i in range(3):
+        for i in range(1):
             print("Verify " + str(i))
             tic = time.time()
             self.verifyCells()

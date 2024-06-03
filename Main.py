@@ -17,7 +17,8 @@ class OmniposeRun():
 
     def __init__(self,saveMasks:bool=False,saveOutlines:bool=False):
         self.model_name = "bact_phase_omni"
-        self.model = models.CellposeModel(gpu=USE_GPU, model_type=self.model_name)
+        self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,'custom_model_1000'),nclasses=3,
+                        nchan=2, dim=2)
         self.chans = [0,0]
         self.saveMasks = saveMasks
         self.saveOutlines = saveOutlines

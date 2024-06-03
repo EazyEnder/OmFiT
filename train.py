@@ -22,7 +22,9 @@ def normalizeMasks(files):
                 ind = ind[0]
                 arr[i,j] = normalized[ind]
         norm_img = Image.fromarray(arr)
-        norm_img.save(file.split(".")[0]+"_norm.tif")
+        timee = file.split("t00")[1].split("xy")[0]
+        ds = file.split("t00")[0]
+        norm_img.save(ds+"_"+timee+"_mask_.tif")
     net_time = time.time() - tic
     print(f'Normalization done ({np.round(net_time,2)}s)')
 
@@ -36,12 +38,14 @@ def normalizeImgs(files):
         arr = np.array(img)
         arr = normalize99(arr)
         norm_img = Image.fromarray(arr)
-        norm_img.save(file.split(".")[0]+"_norm.tif")
+        timee = file.split("t00")[1].split("xy")[0]
+        ds = file.split("t00")[0]
+        norm_img.save(ds+"_"+timee+"_.tif")
     net_time = time.time() - tic
     print(f'Normalization done ({np.round(net_time,2)}s)')
 
 """
-omnipose --train --use_gpu --dir ~/Documents/training/ --look_one_level_down --mask_filter _masks_norm \
-         --n_epochs 4000 --pretrained_model bact_phase_omni --learning_rate 0.1 --diameter 0 \
-         --batch_size 16  --RAdam --nclasses 3 --save_every 10
+omnipose --train --use_gpu --dir C:\Users\abc\Documents\Stage24\Training --mask_filter _mask \
+         --n_epochs 1000 --pretrained_model bact_phase_omni --learning_rate 0.1 --diameter 0 \
+         --batch_size 16  --RAdam --nclasses 3
 """
