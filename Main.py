@@ -17,6 +17,8 @@ class OmniposeRun():
 
     def __init__(self,saveMasks:bool=False,saveOutlines:bool=False):
         self.model_name = "bact_phase_omni"
+        #,pretrained_model=os.path.join(BASE_DIR,'custom_model_1000')
+        #model_type=self.model_name
         self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,'custom_model_1000'),nclasses=3,
                         nchan=2, dim=2)
         self.chans = [0,0]
@@ -70,7 +72,7 @@ class OmniposeRun():
         #subprocess.run(["ffmpeg", "-l"]) 
         print()
 
-    def launchTracking(self, iou_threshold=0.3):
+    def launchTracking(self, iou_threshold=0.2):
         self.clip = Clip(self.masks,self.outlines,iou_threshold=iou_threshold)
         setRUN(self)
         getRUN().clip.post()

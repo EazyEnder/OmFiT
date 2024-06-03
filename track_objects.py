@@ -106,10 +106,12 @@ class Clip():
         
         for i,state in enumerate(self.states):
             for j, cell in enumerate(state):
-                parent_index = self.getCellIndex(cell.parent,times[i])
+                parent_index = None
+                if(not(cell.parent is None)):
+                    parent_index = self.getCellIndex(cell.parent,i-1)
                 children_indexes = []
                 for child in cell.children:
-                    children_indexes.append(self.getCellIndex(child))
+                    children_indexes.append(self.getCellIndex(child,i+1))
                 cloned_cell = cloned_states[i][j]
                 if not(parent_index is None) and parent_index > -1:
                     cloned_cell.parent = cloned_states[i-1][parent_index]
@@ -122,7 +124,7 @@ class Clip():
 
     def post(self):
         """Apply corrections to the data and compute some utils stuffs"""
-        for i in range(1):
+        for i in range(3):
             print("Verify " + str(i))
             tic = time.time()
             self.verifyCells()
@@ -165,7 +167,12 @@ class Clip():
     def removeCell(self,time,cell):
         """Remove a specific cell that is present at t=time"""
         cells = self.states[time-1]
-        cells.remove(cell)
+        new_cells = []
+        for c in cells:
+            if(np.linalg.norm(c.center-cell.center) <= 0.1):
+                continue
+            new_cells.append(c)
+        self.states [time-1] = new_cells
 
     def addCell(self,time,cell):
         """Add a new cell to the time t=time"""
@@ -181,6 +188,10 @@ class Clip():
         for i in times:
             index_todivide.append([])
         for i,cell in enumerate(cells):
+            #Check sporadic cells
+            if(cell.parent is None and len(cell.children) <= 0):
+                self.removeCell(times[i],cell)
+
             if(cell.parent is None):
                 continue
             if(cell.parent.parent is None):
@@ -216,10 +227,10 @@ class Clip():
             children_surf = np.sum([child.surface for child in up_chi])
             if(cell.surface < children_surf*.6):
                 continue
-            index_todivide[times[i]].append(self.getCellIndex(cell,times[i]))
+            index_todivide[times[i]].append((ancestor,self.getCellIndex(cell,times[i])))
         for t in times:
-            for c in index_todivide[t]:
-                self.states[t][c].forcedDivide(ancestor=ancestor)
+            for ancestor,c in index_todivide[t]:
+                cloned_clip.states[t][c].forcedDivide(ancestor=ancestor)
 
     def getCellIndex(self,cell,time):
         """Return the position of the cell in the state array"""
@@ -286,14 +297,15 @@ class Cell():
         self.surface = None
         self.rect = None
         self.direction = None
+        
 
         if auto_init:
             self.surface = self.getSurface()
             self.rect = self.getRect(outline)
             self.direction = self.getDirection(outline)
             self.center = self.computeCenter()
-            self.parent = None
         self.color = np.random.rand(3,)*0.6+0.4
+        self.parent = None
         self.children = []
 
     def clone(self):
@@ -302,6 +314,7 @@ class Cell():
         space = self.space
         outline = self.outline
         cloned_cell = Cell(space, time, outline, auto_init=False)
+        cloned_cell.center = self.center
         cloned_cell.surface = self.surface
         cloned_cell.rect = self.rect
         cloned_cell.direction = self.direction
@@ -358,15 +371,17 @@ class Cell():
     def forcedDivide(self,ancestor):
         """Force a cell to divide"""
         if(self.parent is None):
-            print("Warning: Cell cant divide bcs has no parent")
+            print("Warning: Cell cant divide bcs has no parent  -> abord division")
             return
         parent = self
         for _ in range(ancestor):
             if(parent.parent is None):
-                print("Warning: Cell cant divide bcs ancestor " + str(ancestor) + " doesnt exist")
+                print("Warning: Cell cant divide bcs ancestor " + str(ancestor) + " doesnt exist  -> abord division")
+                return
             parent = parent.parent
         divs = parent.getDivisions()
         if(divs is None):
+            print("Warning, no divisions -> abord division")
             return
         inters = [div[0] for div in divs]
         div_vectors = [div[1] for div in divs]
@@ -384,8 +399,11 @@ class Cell():
             if(len(outlines_list(space)[0]) < 1):
                 print("Warning, a cell is removed bcs has no outlines")
                 continue
-            cell = Cell(getRUN().clip,space,self.time,outlines_list(space)[0])
+            cell = Cell(space,self.time,outlines_list(space)[0])
             getRUN().clip.addCell(self.time,cell)
+        if(len(rslt_spaces) <= 0):
+            print("Warning, no spaces created using lines cut  -> abord division")
+            return 
         getRUN().clip.removeCell(self.time,self)
             
     def cutSpaceUsingLines(self,inters,dirs,f_inter=None):
@@ -419,7 +437,6 @@ class Cell():
                 if(np.sum(n2_space) > 0):
                     m_spaces.append(n2_space)
             spaces = m_spaces
-            print(I)
         return spaces
               
     def getDivisions(self,force=False):
