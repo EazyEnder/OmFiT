@@ -1,21 +1,30 @@
 import numpy as np
-from sort_utils import *
 import time
 from utils import printProgressBar, outlines_list
-from GlobalStorage import setRUN,getRUN
+from GlobalStorage import getRUN
 import multiprocessing
 import copy
 
-#Intersection over union threshold
+"""Intersection over union threshold, if the IOU found is higher than this threshold, then the parent is found.
+Make it equal to one if you dont want to force things."""
 IOU_THRESHOLD_FORCE = 0.5
 
 def MPLinkProcess(old_state,state,k,DATA,iou_threshold):
+    """
+    MP means 'MultiProcessing', this function allows the tracking of all cells at one time step
+    """
     l = []
     for i,c in enumerate(state):
         l.append(c.findParent(old_state,iou_threshold=iou_threshold,cell_index=i))
     DATA[k] = (k,l)
 
 def verifyShape(cell,cell2):
+    """
+    Verify if the space shape of cell1 is similar (same size) to the cell2 shape
+    \n---
+    \nTakes two cells as arguments
+    \nReturn a flag
+    """
     if(cell.space is None or cell2.space is None):
         print("Error: Cell space matrix not defined")
         return False
@@ -24,7 +33,13 @@ def verifyShape(cell,cell2):
         return False
     return True
 
-def createCellsUsingMask(clip,mask,outlines,time):
+def createCellsUsingMask(mask,outlines,time):
+    """
+    Transform a mask matrix to usables cells
+    \n-------------------
+    \n Args: mask:matrix, outlines:array of vec2, time:integer
+    \n Return the cells created using the mask in a array
+    """
     ids = np.unique(mask)
     cells = []
     for id in ids:
@@ -36,37 +51,77 @@ def createCellsUsingMask(clip,mask,outlines,time):
             for j in range(np.shape(mask)[1]):
                 if(flags[i,j]):
                     space[i,j]=1
-        c = Cell(clip,space,time,outlines[id-1])
+        c = Cell(space,time,outlines[id-1])
         cells.append(c)
     return cells
 
 class Clip():
-    """Manages all the frames and gives coherence"""
-    def __init__(self,masks,outlines,times=None,iou_threshold=0.2):
+    """Manages all the frames and gives coherence
+    \n---------------------
+    \n Args: Masks: array of matrix, outlines:Matrix of vec2, times:array of int, iou: float, auto_init:boolean
+    """
+    def __init__(self,masks,outlines,times=None,iou_threshold=0.2,auto_init=True):
         if(times is None):
             times=range(1,len(masks)+1)
         self.times = times
         self.iou_threshold = iou_threshold
         self.masks = masks
+        self.outlines = outlines
         
-        print("Create Cells")
-        tic = time.time() 
-        states = []
-        for m in range(len(masks)):
-            printProgressBar(m,len(masks))
-            states.append(createCellsUsingMask(self,masks[m],outlines[m],times[m]))
-        self.states = states
-        net_time = time.time() - tic
 
-        print(f'Cells Creation done ({np.round(net_time,2)}s)')
+        self.states = []
+        if auto_init:
+            print("Create Cells")
+            tic = time.time() 
+            states = []
+            for m in range(len(masks)):
+                printProgressBar(m,len(masks))
+                states.append(createCellsUsingMask(masks[m],outlines[m],times[m]))
+            self.states = states
+            net_time = time.time() - tic
 
-        print("Tracking")
-        tic = time.time() 
-        self.linkCells(iou_threshold=iou_threshold)
-        net_time = time.time() - tic
-        print(f'Cells Tracking done ({np.round(net_time,2)}s)')
+            print(f'Cells Creation done ({np.round(net_time,2)}s)')
+
+            print("Tracking")
+            tic = time.time() 
+            self.linkCells(iou_threshold=iou_threshold)
+            net_time = time.time() - tic
+            print(f'Cells Tracking done ({np.round(net_time,2)}s)')
+
+    def clone(self):
+        """Return a complete clone of the clip. It is better to use this than the deepcopy
+          method because deepcopy method can (will) drop a recursive error."""
+        times = copy.deepcopy(self.times)
+        iou_threshold = self.iou_threshold
+        masks = copy.deepcopy(self.masks)
+        outlines = self.outlines
+        cloned_clip = Clip(masks,outlines,times,iou_threshold,auto_init=False)
+
+        cloned_states = []
+        for i,state in enumerate(self.states):
+            c_state = []
+            for j,cell in enumerate(state):
+                c_state.append(cell.clone())
+            cloned_states.append(c_state)
+        
+        for i,state in enumerate(self.states):
+            for j, cell in enumerate(state):
+                parent_index = self.getCellIndex(cell.parent,times[i])
+                children_indexes = []
+                for child in cell.children:
+                    children_indexes.append(self.getCellIndex(child))
+                cloned_cell = cloned_states[i][j]
+                if not(parent_index is None) and parent_index > -1:
+                    cloned_cell.parent = cloned_states[i-1][parent_index]
+                for child_index in children_indexes:
+                    if not(child_index is None) and child_index > -1 :
+                        cloned_cell.children.append(cloned_states[i+1][child_index])
+        cloned_clip.states = cloned_states
+
+        return cloned_clip
 
     def post(self):
+        """Apply corrections to the data and compute some utils stuffs"""
         for i in range(1):
             print("Verify " + str(i))
             tic = time.time()
@@ -90,6 +145,7 @@ class Clip():
         print(f'FAM Computing done({np.round(net_time,2)}s)')
 
     def buildMask(self,time):
+        """Return a new mask matrix using cells"""
         spaces = [c.space for c in self.states[time]]
         mask = np.zeros(np.shape(spaces[0]))
         for i,s in enumerate(spaces):
@@ -97,6 +153,7 @@ class Clip():
         return mask
 
     def getAllCells(self):
+        """Return all the cells and their time in the clip (tuple: [times, cells]) """
         cells = []
         times = []
         for m in range(len(self.states)):
@@ -106,16 +163,20 @@ class Clip():
         return (times,cells)
     
     def removeCell(self,time,cell):
+        """Remove a specific cell that is present at t=time"""
         cells = self.states[time-1]
         cells.remove(cell)
 
     def addCell(self,time,cell):
+        """Add a new cell to the time t=time"""
         print("Post " + str(time-1))
         self.states[time-1].append(cell)
 
     def verifyCells(self):
-        times,allcells = self.getAllCells()
-        cells = copy.copy(allcells)
+        """Verify all the cells and apply corrections.
+        \n For example two cells merging is impossible so we force the cells to stay divided."""
+        cloned_clip = self.clone()
+        times,cells = cloned_clip.getAllCells()
         index_todivide = []
         for i in times:
             index_todivide.append([])
@@ -161,6 +222,7 @@ class Clip():
                 self.states[t][c].forcedDivide(ancestor=ancestor)
 
     def getCellIndex(self,cell,time):
+        """Return the position of the cell in the state array"""
         for i,c2 in enumerate(self.states[time]):
             if(np.linalg.norm(c2.center-cell.center) < 0.01 and
                abs(c2.surface-cell.surface) < 0.01):
@@ -168,14 +230,14 @@ class Clip():
         return None
     
     def clearLinks(self):
+        """Reset all parents/children links"""
         for s in self.states:
             for c in s:
                 c.parent = None
                 c.children = []
             
-
     def linkCells(self,iou_threshold=0.2):
-
+        """Track the cells through time and find parent and children for each cell"""
         i = 1
 
         #counter recursive error
@@ -211,25 +273,54 @@ class Clip():
             i += len(list(DATA.values()))
             DATA.clear()
 
-
 class Cell():
     """Contains the information about one cell at one time point"""
-    def __init__(self,clip,space,time,outline):
+    def __init__(self,space,time,outline,auto_init=True):
         self.time = time
         #space is the mask matrix  with only this cell (0: empty, 1: cell)
         self.space = np.clip(space,0,1)
         self.outline = outline
+
         self.divisions = None
-        self.surface = self.getSurface()
-        self.rect = self.getRect(outline)
-        self.direction = self.getDirection(outline)
         self.center = None
-        self.center = self.computeCenter()
-        self.parent = None
+        self.surface = None
+        self.rect = None
+        self.direction = None
+
+        if auto_init:
+            self.surface = self.getSurface()
+            self.rect = self.getRect(outline)
+            self.direction = self.getDirection(outline)
+            self.center = self.computeCenter()
+            self.parent = None
         self.color = np.random.rand(3,)*0.6+0.4
         self.children = []
 
+    def clone(self):
+        """Return a copy of the cell without parent and children."""
+        time = self.time
+        space = self.space
+        outline = self.outline
+        cloned_cell = Cell(space, time, outline, auto_init=False)
+        cloned_cell.surface = self.surface
+        cloned_cell.rect = self.rect
+        cloned_cell.direction = self.direction
+        cloned_cell.color = self.color
+        cloned_cell.divisions = self.divisions
+        return cloned_cell
+
+    def isNeighborTo(self,cell):
+        """Verify if a cell is close to another"""
+        for i,o1 in enumerate(self.outline):
+            for j in range(i+1,len(cell.outline)):
+                o2 = cell.outline[j]
+                if(np.linalg.norm(np.array(o1)-np.array(o2)) < 5):
+                    return True
+        return False
+
     def getSurface(self):
+        """Return the surface of one cell.
+        The surface is the ratio of the surface (squared pixels) of the cell on the total surface of the img"""
         empty_area = 0
         filled_area = 0
         total_area = np.shape(self.space)[0]*np.shape(self.space)[1]
@@ -242,6 +333,7 @@ class Cell():
         return filled_area/total_area
 
     def getDirection(self, outline):
+        """Return an approximation of the privilegied direction of the cell"""
         max_rect_dist = np.max(self.rect)
         dist = []
         for i in range(len(outline)):
@@ -264,6 +356,7 @@ class Cell():
         return np.array(outline[indexes[0]]-outline[indexes[1]])
     
     def forcedDivide(self,ancestor):
+        """Force a cell to divide"""
         if(self.parent is None):
             print("Warning: Cell cant divide bcs has no parent")
             return
@@ -282,7 +375,8 @@ class Cell():
         div_vectors = div_vectors
 
         #list of spaces, one for each new cell child
-        rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors,f_inter=parent.center)
+        #rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors,f_inter=parent.center)
+        rslt_spaces = self.cutSpaceUsingLines(inters,div_vectors)
         for space in rslt_spaces:
             if(np.sum(space) == 0.):
                 print("Warning, a cell is removed bcs mask is empty")
@@ -294,8 +388,8 @@ class Cell():
             getRUN().clip.addCell(self.time,cell)
         getRUN().clip.removeCell(self.time,self)
             
-
-    def cutSpaceUsingLines(self,inters,dirs,f_inter):
+    def cutSpaceUsingLines(self,inters,dirs,f_inter=None):
+        """return the spaces created using lines"""
         spaces = [copy.deepcopy(self.space)]
         for k in range(len(inters)):
             I = inters[k]
@@ -327,11 +421,9 @@ class Cell():
             spaces = m_spaces
             print(I)
         return spaces
-            
-            
-
-    
+              
     def getDivisions(self,force=False):
+        """Return list of tpl [...,(intersection:vec2,direction:vec2)] """
         if(len(self.children) <= 1):
             return None
         if(not(self.divisions is None) and not(force)):
@@ -343,6 +435,8 @@ class Cell():
             for j in range(i+1,len(self.children)):
                 c2 = self.children[j]
                 if(np.linalg.norm(c1.center-c2.center) < 0.01*np.max(self.rect)):
+                    continue
+                if(not(c1.isNeighborTo(c2))):
                     continue
                 ce_1 = c1.center
                 ce_2 = c2.center
@@ -367,16 +461,20 @@ class Cell():
                     direction = np.array([dir_1[1],-dir_1[0]])
                 
                 direction = direction/np.linalg.norm(direction)
+                #Actually intersection calculation using directions approximations is too far from the 
+                #real intersection so we use the mean center instead.
+                intersection = (c1.center+c2.center)/2
                 divs.append((intersection,direction))
         self.divisions = divs
         return divs
 
-
     def getRect(self, outline):
+        """Return the minimum boudingbox containing the cell"""
         T = np.array(outline).T
         return (np.max(T[0])-np.min(T[0]),np.max(T[1])-np.min(T[1]))
 
     def getCellTrajectory(self,past=True):
+        """Not used. Follow the cell through time / Return a cell history"""
         cells_path = [[self]]
         cell_f = self
         while(past and not(cell_f.parent is None)):
@@ -399,6 +497,7 @@ class Cell():
         return cells_path
                 
     def findParent(self,cells,iou_threshold=0.2,cell_index=0):
+        """Find the parent of a cell using 'Intersection Over Union' method"""
         score = []
         for i in range(len(cells)):
             cell = cells[i]
@@ -430,9 +529,8 @@ class Cell():
         #self.color = self.parent.color
         return (cell_index,np.argmax(score))
         
-
-
     def computeCenter(self,force=False):
+        """Find the center of a cell using his shape"""
         if(not(force) and not(self.center is None)):
             return self.center
         sp_shape = np.shape(self.space)
@@ -449,9 +547,11 @@ class Cell():
         return pos
 
     def union(self,cell2):
+        """Apply the union operator for this cell and another"""
         if(not(verifyShape(self,cell2))):return
         return np.clip(self.space + cell2.space,0,1)
     def inter(self,cell2):
+        """Apply the intersection operator for this cell and another"""
         if(not(verifyShape(self,cell2))):return
         
         rslt = self.space * cell2.space

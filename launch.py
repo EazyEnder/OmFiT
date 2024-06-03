@@ -1,4 +1,7 @@
-#Executable Script
+"""
+This is the Executable Script of the software. 
+"""
+
 if __name__ == '__main__':
     from Main import OmniposeRun
 
