@@ -438,8 +438,72 @@ class Cell():
                     m_spaces.append(n2_space)
             spaces = m_spaces
         return spaces
-              
+
     def getDivisions(self,force=False):
+        """Return list of tpl [...,(intersection:vec2,direction:vec2)] """
+        if(len(self.children) <= 1):
+            return None
+        if(not(self.divisions is None) and not(force)):
+            return self.divisions
+        #[ (Intersection, Direction) , ... ]
+        divs = []
+        for i in range(len(self.children)):
+            c1 = self.children[i]
+            for j in range(i+1,len(self.children)):
+                c2 = self.children[j]
+                
+                #get contact outlines
+                border_points = []
+                distances = []
+                for i,pos1 in enumerate(c1.outlines):
+                    for j in range(i+1,len(c2.outlines)):
+                        pos2 = c2.outlines[j]
+                        distance = np.linalg.norm(pos1-pos2) 
+                        if distance <= np.sqrt(min(c1.getSurface(), c2.getSurface()))*0.2:
+                            border_points.append([pos1,pos2])
+                            distances.append(distance)
+
+                if len(distances) <= 1:
+                    continue
+
+                sorted_indexes = np.argsort(np.array(distances))
+                border_points = border_points[sorted_indexes]
+                distances = distances[sorted_indexes]
+
+                points = []
+                for bp in border_points:
+                    if not(bp[0] in points):
+                        points.append(bp[0])
+                    if not(bp[1] in points):
+                        points.append(bp[1])
+
+                #Test 1: Intersection is mean of points
+                intersection = np.sum(points)/len(points)
+
+                #Using covariance/fit ???
+                #mean = np.mean(points)
+                #sum = np.zeros(2)
+                #for p in points:
+                #    sum.append((p - mean) @ (p - mean).T)
+                #covariance = 1/len(points)*sum
+                #eigenvalues, eigenvectors = np.linalg.eig(covariance)
+
+                #Using derivative
+                pts1 = border_points[0]
+                pts2 = border_points[1]
+                direction = pts1[0]-pts2[0]
+                if np.linalg.norm(direction) <= 0.001:
+                    direction = pts2[0]-pts2[1]
+                    if np.linalg.norm(direction) <= 0.001:
+                        direction = pts1[0]-pts2[1]
+                direction = direction/np.linalg.norm(direction)
+
+                divs.append((intersection,direction))
+        self.divisions = divs
+        return divs
+
+              
+    def getApproximateDivisions(self,force=False):
         """Return list of tpl [...,(intersection:vec2,direction:vec2)] """
         if(len(self.children) <= 1):
             return None
