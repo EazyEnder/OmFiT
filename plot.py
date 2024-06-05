@@ -13,12 +13,12 @@ def plotTracking(imgs,clip,export_path):
         img = imgs[i]
         cells = clip.states[i]
         plt.clf()
-        plt.imshow(img)
         centers = np.array([c.center for c in cells]).T
         colors = [c.color for c in cells]
-        #lotLineUsingFAM(clip,i)
-        #overlay = plot.mask_overlay(img, getRUN().clip.buildMask(i).astype(int))
-        #plt.imshow(overlay, interpolation='none')
+        #plotLineUsingFAM(clip,i)
+        overlay = plot.mask_overlay(img, getRUN().clip.buildMask(i).astype(int))
+        plt.imshow(overlay, interpolation='none')
+        #plt.imshow(img)
         plt.scatter(centers[1],centers[0],c=colors)
         plt.savefig(export_path+"/export_"+str(i)+".jpg")
     net_time = time.time() - tic

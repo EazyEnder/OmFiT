@@ -124,7 +124,7 @@ class Clip():
 
     def post(self):
         """Apply corrections to the data and compute some utils stuffs"""
-        for i in range(3):
+        for i in range(1):
             print("Verify " + str(i))
             tic = time.time()
             self.verifyCells()
@@ -176,7 +176,6 @@ class Clip():
 
     def addCell(self,time,cell):
         """Add a new cell to the time t=time"""
-        print("Post " + str(time-1))
         self.states[time-1].append(cell)
 
     def verifyCells(self):
@@ -223,10 +222,10 @@ class Clip():
                 continue
             if(len(up_chi)<2):
                 continue
-            print("Pre "+str(times[i]) + " wth ancestor " + str(ancestor))
             children_surf = np.sum([child.surface for child in up_chi])
-            if(cell.surface < children_surf*.6):
+            if(cell.surface < children_surf*.25):
                 continue
+            print("Pre "+str(times[i]) + " wth ancestor " + str(ancestor))
             index_todivide[times[i]].append((ancestor,self.getCellIndex(cell,times[i])))
         for t in times:
             for ancestor,c in index_todivide[t]:
@@ -379,8 +378,8 @@ class Cell():
                 print("Warning: Cell cant divide bcs ancestor " + str(ancestor) + " doesnt exist  -> abord division")
                 return
             parent = parent.parent
-        divs = parent.getDivisions()
-        if(divs is None):
+        divs = parent.getApproximateDivisions()
+        if(divs is None or len(divs) < 1):
             print("Warning, no divisions -> abord division")
             return
         inters = [div[0] for div in divs]
@@ -401,6 +400,7 @@ class Cell():
                 continue
             cell = Cell(space,self.time,outlines_list(space)[0])
             getRUN().clip.addCell(self.time,cell)
+            print("Post " + str(self.time-1))
         if(len(rslt_spaces) <= 0):
             print("Warning, no spaces created using lines cut  -> abord division")
             return 
@@ -447,19 +447,22 @@ class Cell():
             return self.divisions
         #[ (Intersection, Direction) , ... ]
         divs = []
+        print(self.children)
         for i in range(len(self.children)):
             c1 = self.children[i]
             for j in range(i+1,len(self.children)):
                 c2 = self.children[j]
+                if(not(c1.isNeighborTo(c2))):
+                    continue
                 
                 #get contact outlines
                 border_points = []
                 distances = []
-                for i,pos1 in enumerate(c1.outlines):
-                    for j in range(i+1,len(c2.outlines)):
-                        pos2 = c2.outlines[j]
+                for i,pos1 in enumerate(c1.outline):
+                    for j in range(i+1,len(c2.outline)):
+                        pos2 = c2.outline[j]
                         distance = np.linalg.norm(pos1-pos2) 
-                        if distance <= np.sqrt(min(c1.getSurface(), c2.getSurface()))*0.2:
+                        if distance <= np.sqrt(min(c1.surface, c2.surface))*0.2:
                             border_points.append([pos1,pos2])
                             distances.append(distance)
 
@@ -498,7 +501,10 @@ class Cell():
                         direction = pts1[0]-pts2[1]
                 direction = direction/np.linalg.norm(direction)
 
+                print("ttttt")
+
                 divs.append((intersection,direction))
+        print(divs)
         self.divisions = divs
         return divs
 
