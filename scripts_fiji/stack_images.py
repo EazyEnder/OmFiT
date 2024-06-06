@@ -1,3 +1,7 @@
+"""
+Fiji script: Concatenate all the stacks/imgs together
+"""
+
 import os, sys
 from ij import IJ, ImagePlus, ImageStack  
 from ij.plugin import Concatenator
@@ -11,7 +15,7 @@ from datetime import datetime
 POSITION = "wt4"
 EXPORT_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
 SRC_PATH = "/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"
-COLORS = ["phase"]#, "y", "r"]
+COLORS = ["phase", "y", "r"]
 MM_NAME= ["000" ,"001" ,"002"]
 IDX_FILE_BEGIN = 1
 IDX_FILE_END = 12
