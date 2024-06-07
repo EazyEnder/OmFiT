@@ -5,7 +5,7 @@ Convert a json file to a text file, only for the json exported using personnals 
 import os, sys
 import json
 
-POSITION = "wt5"
+POSITION = "wt4"
 DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
 JSON_PATH = DIR_PATH+"result.json"
 
@@ -34,6 +34,7 @@ def main():
 				if not(key in prefix):
 					prefix.append(key)
 				index_values.append(data[channel][index][key])
+			#Matrix transpose:
 			index_values = list(zip(*index_values))
 			for line in index_values:
 				rslt_matrix.append(line)
