@@ -12,9 +12,10 @@ from java.lang.reflect import Array
 
 
 POSITION = "wt3"
-DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
 #Files that we will use
 COLORS_FILE = ["phase", "y", "r"]
+#COLORS_FILE = ["phase_cropped", "y_cropped", "r_cropped"]
 #Colors channels order
 COLORS = ["gray", "yellow", "red"]
 
@@ -30,9 +31,11 @@ def mergeChannels(channels_stacks, names):
 	    channelIndex = hexColors.index(color.lower()) if color[0] == "#" else colorNames.index(color.lower())
 	    images[channelIndex] = channels_stacks[names.index(name)]
 	merged = RGBStackMerge.mergeChannels(images, False)
+	print("Channels merged")
+	print("Saving the image")
 	fs = FileSaver(merged)
 	fs.saveAsTiff(os.path.join(DIR_PATH,"channelsMerged.tif"));
-	print("Channels merged")
+	print("Image saved")
 	return True
 
 def main():

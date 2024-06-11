@@ -12,12 +12,25 @@ import copy
 
 #the dir contains only the channels stacks and a json file giving times
 
-POSITION = "wt4"
-DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
-INTERVALS_TO_REMOVE = [(200,-1),(96,99),(141,145), (41,42)] #WT4
+POSITION = "dt0"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+POSITION+"/"
+#INTERVALS_TO_REMOVE = [(200,-1),(96,99),(141,145), (41,42)] #WT4
 #INTERVALS_TO_REMOVE = [(42,42),(92,95),(97,98),(143,146),(149,150),(181,186),(200,-1)] #WT3
-#INTERVALS_TO_REMOVE = [(42,42),(89,89),(97,98),(143,144),(147,148),(185,185),(200,-1)] #WT5
+#INTERVALS_TO_REMOVE = [(42,42),(89,89),(97,98),(143,144),(147,148),(185,185),(200,-1), (173,177)] #WT5
+#INTERVALS_TO_REMOVE = [(163,-1),(102,104),(56,58),(54,54),(9,9)] #WT3 TRANSI
+#INTERVALS_TO_REMOVE = [(286,-1),(190,200),(104,104),(102,102),(56,58),(54,54)] #WT2 TRANSI
+#INTERVALS_TO_REMOVE = [(0,104),(190,190),(199,200),(240,-1)] #WT1 TRANSI
+#INTERVALS_TO_REMOVE = [(189,-1),(104,104),(102,102),(58,58),(56,56),(54,54)] #WT0 TRANSI
+#INTERVALS_TO_REMOVE = [(54,54),(56,56),(58,58),(102,104),(186,-1)] #DT1 TRANSI
+#INTERVALS_TO_REMOVE = [(2,2),(46,46),(54,54),(56,58),(102,102),(104,104),(190,190),(199,-1)] #DT2 TRANSI
+#INTERVALS_TO_REMOVE = [(0,2),(46,46),(54,54),(56,58),(102,104),(190,190),(199,200),(207,-1)] #DT3 TRANSI
+INTERVALS_TO_REMOVE = [(0,2),(46,54),(56,56),(58,58),(102,102),(104,104),(190,190),(199,199),(200,200),(217,-1)] #DT0 TRANSI
+
 ONLY_JSON = False
+ONLY_STRING = None
+
+
+STATIC_DATA = None
 
 def isInInterval(index):
 	for i in INTERVALS_TO_REMOVE:
@@ -29,11 +42,15 @@ def isInInterval(index):
 def modifyJson(file_name):
 	f = open(os.path.join(DIR_PATH,file_name))
 	data = json.load(f)
+	global STATIC_DATA
+	STATIC_DATA = copy.deepcopy(data)
 	
 	for channel in data.keys():
 		global_idx_offset = 0
 		for index in data[channel].keys():
 	 		gii = data[channel][index]["global_index"]
+	 		if "old_index" in data[channel][index].keys():
+	 			gii = data[channel][index]["old_index"]
 	 		index_to_keep = []
 	 		for i in range(len(gii)):
 	 			if isInInterval(gii[i]+1):
@@ -55,6 +72,32 @@ def modifyJson(file_name):
 	with open(os.path.join(DIR_PATH,file_name), "w") as outfile:
 		json.dump(data, outfile)
 	print("JSON " + file_name + " modified")
+	
+def getFrameIndex(global_index):
+
+	data = STATIC_DATA
+	if data is None:
+		f_json = None
+		for f in os.listdir(DIR_PATH):
+			if f.split(".")[1] in ["json"]:
+				f_json = f
+		f = open(os.path.join(DIR_PATH,f_json))
+		data = json.load(f)
+		f.close()
+	
+	for channel in data.keys():
+		global_idx_offset = 0
+		for index in data[channel].keys():
+	 		gii = data[channel][index]["global_index"]
+	 		cii = data[channel][index]["global_index"]
+	 		if "old_index" in data[channel][index].keys():
+	 			gii = data[channel][index]["old_index"]
+	 		for i in range(len(gii)):
+	 			if cii[i] == global_index:
+	 				return gii[i]
+	 
+	print("Error in using json information ")
+	return None
 
 def modifyStack(file_name):
 	channel = file_name.split(".")[0]
@@ -63,7 +106,7 @@ def modifyStack(file_name):
 	
 	new_stack = ImageStack(imp.width, imp.height)
 	for i in range(imp.getNSlices()):
-		if isInInterval(i+1):
+		if isInInterval(getFrameIndex(i)+1):
 			continue
 		new_stack.addSlice(None, stack.getProcessor(i+1)) 
 	imp = ImagePlus("filtered_stack", new_stack)
@@ -75,7 +118,11 @@ def modifyStack(file_name):
 def main():
 	if ONLY_JSON:
 		print("Only change json file")
+	if not(ONLY_STRING is None):
+		print("Only filename containing: "+ONLY_STRING)
 	for f,file_name in enumerate(os.listdir(DIR_PATH)):
+		if not(ONLY_STRING is None) and not(ONLY_STRING in file_name):
+			continue
 		if file_name.split(".")[1] in ["tif","tiff"] and not(ONLY_JSON):
 			modifyStack(file_name)
 			continue

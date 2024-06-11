@@ -39,7 +39,7 @@ settings = Settings(imp)
 settings.detectorFactory = OmniposeDetectorFactory()
 settings.detectorSettings = {
     'OMNIPOSE_MODEL_FILEPATH' : "",
-    'OMNIPOSE_PYTHON_FILEPATH' : "/home/irina/miniconda3/envs/omnipose_fiji/bin/python",
+    'OMNIPOSE_PYTHON_FILEPATH' : "/home/irina/.conda/envs/omnipose_fiji/bin/python",
     'OMNIPOSE_MODEL': PretrainedModelOmnipose.BACT_PHASE,
     'TARGET_CHANNEL' : 1,
     'USE_GPU' : False,

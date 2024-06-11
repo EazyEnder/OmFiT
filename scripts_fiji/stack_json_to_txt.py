@@ -5,7 +5,7 @@ Convert a json file to a text file, only for the json exported using personnals 
 import os, sys
 import json
 
-POSITION = "wt4"
+POSITION = "wt5"
 DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
 JSON_PATH = DIR_PATH+"result.json"
 
