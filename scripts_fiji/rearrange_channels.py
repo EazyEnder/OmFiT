@@ -11,8 +11,8 @@ from ij.plugin import ChannelArranger
 NEW_ORDER = [2,1,3]
 
 #Pos can be a list of positions -> the script will modify a list of folders.
-#POSITION = "wt0"
-POSITION = ["wt0","wt1","wt2","wt3","dt0","dt1","dt2","dt3"]
+POSITION = "wt5"
+#POSITION = ["wt0","wt1","wt2","wt3","dt0","dt1","dt2","dt3"]
 DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"
 TIFF_NAME="registered"
 

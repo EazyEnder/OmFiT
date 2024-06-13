@@ -6,11 +6,16 @@ from math import floor
 from ij.gui import Roi
 from java.awt import Rectangle
   
-sourceDir = "C:/Users/abc/Documents/Stage24/PreTraining/masks/"
-targetDir = "C:/Users/abc/Documents/Stage24/PreTraining/outputs/"
+sourceDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/masks/"
+targetDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/outputs/"
+
+#!!!! 8-BITS SO MAXIMUM: 255 TOTAL MASKS, i.e FOR THE 4 IMAGES TOGETHER IN THE BATCH
 
 IS_MASKS = True
-ITERATION = 1
+ITERATION = 8
+
+#Pair with other dataset or just one batch is one data set
+PAIR = True
 
 def containsDataSet(datasets,name):
 	for i,dataset in enumerate(datasets):
@@ -135,10 +140,22 @@ def group(dataset1, dataset2, crops):
 	print("Max Groups possible in this pair: "+str(max_groups))
 	
 	for i in range(max_groups):
-		f11 = imgs1[i]
-		f12 = imgs1[-(i+1)]
-		f21 = imgs2[i]
-		f22 = imgs2[-(i+1)]
+		if PAIR:
+			f11 = imgs1[i]
+			f12 = imgs1[-(i+1)]
+			f21 = imgs2[i]
+			f22 = imgs2[-(i+1)]
+		else:
+			if i < max_groups/2:
+				f11 = imgs1[i]
+				f12 = imgs1[i+1]
+				f21 = imgs1[i+2]
+				f22 = imgs1[i+3]
+			else:
+				f11 = imgs2[i-int(max_groups/2)]
+				f12 = imgs2[i-int(max_groups/2)+1]
+				f21 = imgs2[i-int(max_groups/2)+2]
+				f22 = imgs2[i-int(max_groups/2)+3]
 		process(f11,f12,f21,f22)
 
 def main(folder):

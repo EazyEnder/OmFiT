@@ -6,8 +6,8 @@ import os
 from ij import IJ, ImagePlus, ImageStack
 from ij.io import FileSaver
 
-POSITION = "wt2"
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+POSITION+"/"
+POSITION = "wt3"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
 
 TIMES = [(0,97),(98,-1)]
 #[(POSITION X & Y),(SIZE WIDTH & HEIGHT)]

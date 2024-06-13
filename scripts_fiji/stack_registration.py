@@ -11,7 +11,7 @@ from java.lang.reflect import Array
 
 
 
-POSITION = "wt3"
+POSITION = "wt5"
 DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
 #Files that we will use
 COLORS_FILE = ["phase", "y", "r"]

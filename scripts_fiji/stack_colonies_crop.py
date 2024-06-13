@@ -1,12 +1,12 @@
 """
-Fiji script: Crop and divide each colony in a stack (using crop's csv file)
+Fiji script: Crop and divide each colony into stacks (using crop's csv file)
 """
 
 import os  
 from ij import IJ, ImagePlus, ImageStack
 from ij.io import FileSaver
 
-POSITION = "wt1"
+POSITION = "wt5"
 DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
 FILE_NAME = "registered_arranged"
 CHANNEL_NAME = ["phase","y","r"]
@@ -62,7 +62,7 @@ def crop(imp,file_name):
 				new_stack.addSlice(ip.crop())
 			fs = FileSaver(ImagePlus("cropped_stack_"+name+"_"+str(c), new_stack))
 			fs.saveAsTiff(os.path.join(DIR_PATH,POSITION+"_"+str(c+1)+"_"+name+".tif"))
-		print("Area"+str(c+1)+"/"+str(len(CROPS))+" saved")
+		print("Area "+str(c+1)+"/"+str(len(CROPS))+" saved")
 	
 def main():
 	for f,file_name in enumerate(os.listdir(DIR_PATH)):
