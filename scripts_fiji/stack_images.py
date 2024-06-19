@@ -12,17 +12,16 @@ from datetime import datetime
 
 #concatenate all the imgs
 
-POSITION = "dt0"
-EXPORT_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+POSITION+"/"
+POSITION = "wt5"
+EXPORT_PATH = "/media/irina/5C00325A00323B7A/Zack/test/"+POSITION+"/"
 
 #list of path in order
-SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov20_nice_30_to_25/transition30_25_",
-	"/media/irina/LIPhy-INFO/cyano/nov20_nice_30_to_25/transition30_now_25_"]
+SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"]
 COLORS = ["phase", "y", "r"]
 MM_NAME= ["000" ,"001" ,"002"]
 IDX_FILE_BEGIN = 1
 #Maximum index for all src path
-IDX_FILE_END = 7
+IDX_FILE_END = 12
 
 #file_time = os.path.getmtime("")
 

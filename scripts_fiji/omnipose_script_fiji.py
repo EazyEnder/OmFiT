@@ -38,9 +38,9 @@ settings = Settings(imp)
 
 settings.detectorFactory = OmniposeDetectorFactory()
 settings.detectorSettings = {
-    'OMNIPOSE_MODEL_FILEPATH' : "",
+    'OMNIPOSE_MODEL_FILEPATH' : "/home/irina/Downloads/custom_model_5000_1306",
     'OMNIPOSE_PYTHON_FILEPATH' : "/home/irina/.conda/envs/omnipose_fiji/bin/python",
-    'OMNIPOSE_MODEL': PretrainedModelOmnipose.BACT_PHASE,
+    'OMNIPOSE_MODEL': PretrainedModelOmnipose.CUSTOM,
     'TARGET_CHANNEL' : 1,
     'USE_GPU' : False,
     'CELL_DIAMETER' : 30.,

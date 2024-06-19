@@ -60,13 +60,15 @@ class Clip():
     \n---------------------
     \n Args: Masks: array of matrix, outlines:Matrix of vec2, times:array of int, iou: float, auto_init:boolean
     """
-    def __init__(self,masks,outlines,times=None,iou_threshold=0.2,auto_init=True):
+    def __init__(self,masks,outlines,times=None,iou_threshold=0.2,auto_init=True,tracking=True,verifying=True):
         if(times is None):
             times=range(1,len(masks)+1)
         self.times = times
         self.iou_threshold = iou_threshold
         self.masks = masks
         self.outlines = outlines
+        self.tracking = tracking
+        self.verifying = verifying 
         
 
         self.states = []
@@ -82,11 +84,12 @@ class Clip():
 
             print(f'Cells Creation done ({np.round(net_time,2)}s)')
 
-            print("Tracking")
-            tic = time.time() 
-            self.linkCells(iou_threshold=iou_threshold)
-            net_time = time.time() - tic
-            print(f'Cells Tracking done ({np.round(net_time,2)}s)')
+            if tracking:
+                print("Tracking")
+                tic = time.time() 
+                self.linkCells(iou_threshold=iou_threshold)
+                net_time = time.time() - tic
+                print(f'Cells Tracking done ({np.round(net_time,2)}s)')
 
     def clone(self):
         """Return a complete clone of the clip. It is better to use this than the deepcopy
@@ -124,27 +127,29 @@ class Clip():
 
     def post(self):
         """Apply corrections to the data and compute some utils stuffs"""
-        for i in range(1):
-            print("Verify " + str(i))
-            tic = time.time()
-            self.verifyCells()
-            self.clearLinks()
-            self.linkCells(iou_threshold=self.iou_threshold)
-            net_time = time.time() - tic
-            print(f'Cells Verif done ({np.round(net_time,2)}s)')
+        if self.verifying:
+            for i in range(1):
+                print("Verify " + str(i))
+                tic = time.time()
+                self.verifyCells()
+                self.clearLinks()
+                self.linkCells(iou_threshold=self.iou_threshold)
+                net_time = time.time() - tic
+                print(f'Cells Verif done ({np.round(net_time,2)}s)')
 
-        print("FAM Weights")
-        fam_weights = []
-        tic = time.time() 
-        for m in range(len(self.masks)):
-            printProgressBar(m,len(self.masks))
-            l = []
-            for cell in self.states[m]:
-                l.append((cell,cell.computeFAMWeight()))
-            fam_weights.append(l)
-        net_time = time.time() - tic
-        self.fam_weights = fam_weights
-        print(f'FAM Computing done({np.round(net_time,2)}s)')
+        if self.tracking:
+            print("FAM Weights")
+            fam_weights = []
+            tic = time.time() 
+            for m in range(len(self.masks)):
+                printProgressBar(m,len(self.masks))
+                l = []
+                for cell in self.states[m]:
+                    l.append((cell,cell.computeFAMWeight()))
+                fam_weights.append(l)
+            net_time = time.time() - tic
+            self.fam_weights = fam_weights
+            print(f'FAM Computing done({np.round(net_time,2)}s)')
 
     def buildMask(self,time):
         """Return a new mask matrix using cells"""

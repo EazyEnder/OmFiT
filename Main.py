@@ -10,21 +10,23 @@ import time
 from GlobalStorage import setRUN, getRUN
 
 OMNI_DIR = Path(omnipose.__file__).parent.parent
-BASE_DIR = os.path.join(OMNI_DIR,'data')
+BASE_DIR = os.path.join(Path(__file__).parent.parent,'data')
 USE_GPU = core.use_gpu()
+
+print(BASE_DIR)
 
 class OmniposeRun():
 
-    def __init__(self,saveMasks:bool=False,saveOutlines:bool=False):
+    def __init__(self,saveMasks:bool=True,saveOutlines:bool=True):
         self.model_name = "bact_phase_omni"
         #,pretrained_model=os.path.join(BASE_DIR,'custom_model_1000')
         #model_type=self.model_name
-        self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,'custom_model_1000'),nclasses=3,
-                        nchan=2, dim=2)
+        self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,'from0_nchan1'),nclasses=3,
+                        nchan=1, dim=2)
         self.chans = [0,0]
         self.saveMasks = saveMasks
         self.saveOutlines = saveOutlines
-        self.saveOmniposeFiles = False
+        self.saveOmniposeFiles = True
         self.basedir = BASE_DIR
 
         self.params = {'channels':self.chans, # always define this with the model
@@ -44,13 +46,13 @@ class OmniposeRun():
 
     def run(self):
 
-        files = np.array([str(p) for p in Path(self.basedir).glob("*c1.tif")])
+        files = np.array([str(p) for p in Path(self.basedir).glob("*.tif")])
         t_index = []
         for f in files:
-            t = int(f.split(".")[0].split("t")[-1].split("xy")[0])
+            t = int(f.split(".")[0].split("_")[-1])
             t_index.append(t)
         files = files[np.argsort(t_index)]
-        files = files[90:130:1]
+        files = files[::1]
         self.files = files
         self.imgs = [io.imread(f) for f in files]
 
@@ -72,8 +74,8 @@ class OmniposeRun():
         #subprocess.run(["ffmpeg", "-l"]) 
         print()
 
-    def launchTracking(self, iou_threshold=0.2):
-        self.clip = Clip(self.masks,self.outlines,iou_threshold=iou_threshold)
+    def launchTracking(self, iou_threshold=0.2, tracking=True, verifying=True):
+        self.clip = Clip(self.masks,self.outlines,iou_threshold=iou_threshold,verifying=verifying,tracking=tracking)
         setRUN(self)
         getRUN().clip.post()
         self.clip = getRUN().clip

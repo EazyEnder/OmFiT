@@ -6,16 +6,16 @@ from math import floor
 from ij.gui import Roi
 from java.awt import Rectangle
   
-sourceDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/masks/"
+sourceDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/raws/"
 targetDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/outputs/"
 
 #!!!! 8-BITS SO MAXIMUM: 255 TOTAL MASKS, i.e FOR THE 4 IMAGES TOGETHER IN THE BATCH
 
-IS_MASKS = True
-ITERATION = 8
+IS_MASKS = False
+ITERATION = 1
 
 #Pair with other dataset or just one batch is one data set
-PAIR = True
+PAIR = False
 
 def containsDataSet(datasets,name):
 	for i,dataset in enumerate(datasets):

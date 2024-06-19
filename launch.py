@@ -7,7 +7,7 @@ if __name__ == '__main__':
 
     run = OmniposeRun()
     run.run()
-    run.launchTracking()
+    #run.launchTracking(tracking=False,verifying=False)
 
 #Make video using ffmpeg
 #ffmpeg -framerate 20 -i export_%d.jpg -c:v libx264 -r 20 -pix_fmt yuv420p export.mp4
