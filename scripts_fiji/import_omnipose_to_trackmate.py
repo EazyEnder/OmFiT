@@ -1,3 +1,7 @@
+"""
+Fiji script: Import omnipose files (outlines .txt) to trackmate using SpotROI
+"""
+
 from fiji.plugin.trackmate import SpotRoi
 import os
 from ij import IJ, ImagePlus, ImageStack
@@ -7,7 +11,7 @@ from fiji.plugin.trackmate import Logger
 from fiji.plugin.trackmate import Settings
 from fiji.plugin.trackmate import SelectionModel
 from fiji.plugin.trackmate import Model
-from fiji.plugin.trackmate.gui.wizard.descriptors import ConfigureViewsDescriptor
+from fiji.plugin.trackmate.gui.wizard.descriptors import ChooseTrackerDescriptor
 from fiji.plugin.trackmate.gui.displaysettings import DisplaySettingsIO
 from fiji.plugin.trackmate.gui import Icons
 from fiji.plugin.trackmate.gui import GuiUtils
@@ -28,8 +32,6 @@ def argsort(seq):
 def main():
 	model = Model()
 	model.setLogger(Logger.IJ_LOGGER)
-	settings = Settings()
-	settings.addAllAnalyzers()
 	model.beginUpdate()
 	
 	unsorted_times = []
@@ -79,13 +81,16 @@ def main():
 	imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
 	imp.show()
 	
+	settings = Settings(imp)
+	settings.addAllAnalyzers()
+	
 	sm = SelectionModel(model)
 	ds = DisplaySettingsIO.readUserDefault()
 	
 	displayer =  HyperStackDisplayer(model, sm, imp, ds)
 	displayer.render()
 	
-	panelIdentifier = ConfigureViewsDescriptor.KEY;
+	panelIdentifier = "ChooseTracker";
 	trackmate = TrackMate(model, settings)
 	sequence = TrackMateWizardSequence(trackmate, sm, ds);
 	sequence.setCurrent(panelIdentifier);
