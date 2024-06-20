@@ -20,7 +20,7 @@ from java.io import File
 import sys
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence 
 
-DATA_DIR = "/home/irina/Documents/data/"
+DATA_DIR = "C:/Users/abc/omnipose/data"
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -29,7 +29,7 @@ logger = Logger.IJ_LOGGER
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
 
-def main():
+def main(model_used = None):
 	model = Model()
 	model.setLogger(Logger.IJ_LOGGER)
 	model.beginUpdate()
@@ -43,9 +43,12 @@ def main():
 			continue
 			
 		ds_name = filename.split("_phase_")[0]
+		if not(model_used is None):
+			if not(filename.split("_")[4] == model_used):
+				continue
 		time = filename.split("_")[3]
 		
-		image_path = os.path.join(DATA_DIR,filename.split("_cp_")[0]+".tif")
+		image_path = os.path.join(DATA_DIR,filename[:[i for i, ltr in enumerate(filename) if ltr == "_"][3]]+".tif")
 		f += 1
 		if(not(os.path.exists(image_path))):
 			print("Image "+str(f)+" doesn't exist")
@@ -76,7 +79,7 @@ def main():
 	for img in imgs:
 		stack.addSlice(img.getProcessor())
 	
-	imp = ImagePlus("",stack)
+	imp = ImagePlus(model_used,stack)
 	imp_dims = imp.getDimensions()
 	imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
 	imp.show()
@@ -99,4 +102,6 @@ def main():
 	GuiUtils.positionWindow( frame, imp.getWindow() );
 	frame.setVisible(True);
 			
-main()
+main(model_used="from01906")
+main(model_used="from01706")
+main(model_used="continuity1706")

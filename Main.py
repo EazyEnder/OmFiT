@@ -17,16 +17,23 @@ print(BASE_DIR)
 
 class OmniposeRun():
 
-    def __init__(self,saveMasks:bool=True,saveOutlines:bool=True):
+    def __init__(self,custom_model=None,saveMasks:bool=False,saveOutlines:bool=True):
         self.model_name = "bact_phase_omni"
         #,pretrained_model=os.path.join(BASE_DIR,'custom_model_1000')
         #model_type=self.model_name
-        self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,'from0_nchan1'),nclasses=3,
-                        nchan=1, dim=2)
+        if not(custom_model is None):
+            self.model = models.CellposeModel(gpu=USE_GPU, pretrained_model=os.path.join(BASE_DIR,custom_model),nclasses=3,
+                        nchan=2, dim=2)
+            self.model_name = custom_model
+        else:
+            self.model = models.CellposeModel(gpu=USE_GPU, model_type=self.model_name,nclasses=3,
+                        nchan=2, dim=2)
+            
+        print("Init run using model: " + self.model_name)
         self.chans = [0,0]
         self.saveMasks = saveMasks
         self.saveOutlines = saveOutlines
-        self.saveOmniposeFiles = True
+        self.saveOmniposeFiles = False
         self.basedir = BASE_DIR
 
         self.params = {'channels':self.chans, # always define this with the model
@@ -86,7 +93,7 @@ class OmniposeRun():
         n = range(len(self.imgs))
         #Save omnipose file
         if(self.saveOmniposeFiles):
-            io.masks_flows_to_seg(self.imgs, self.masks, self.flows, self.styles, [f.split(".tif")[0] for f in self.files], self.chans)
+            io.masks_flows_to_seg(self.imgs, self.masks, self.flows, self.styles, [f.split(".tif")[0]+"_"+self.model_name for f in self.files], self.chans)
 
         #Save masks matrix
         if(self.saveMasks):
@@ -97,7 +104,7 @@ class OmniposeRun():
             for idx, i in enumerate(n):
                 base = os.path.splitext(self.files[idx])[0]
                 outlines = utils.outlines_list(self.masks[idx])
-                io.outlines_to_text(base, outlines)
+                io.outlines_to_text(base+"_"+self.model_name, outlines)
 
 """
 import matplotlib.pyplot as plt

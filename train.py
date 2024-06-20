@@ -50,5 +50,9 @@ def normalizeImgs(files):
     print(f'Normalization done ({np.round(net_time,2)}s)')
 
 """
+<<<<<<< Updated upstream
 omnipose --train --use_gpu --dir ~/Documents/Training/ --mask_filter _mask --n_epochs 4000 --learning_rate 0.1 --diameter 0 --batch_size 8  --RAdam --nclasses 3
+=======
+omnipose --train --use_gpu --dir C:\Users\abc\Documents\Stage24\Training --mask_filter _mask --n_epochs 5000 --pretrained_model bact_phase_omni --learning_rate 0.1 --diameter 0 --batch_size 18  --RAdam --nclasses 3
+>>>>>>> Stashed changes
 """
