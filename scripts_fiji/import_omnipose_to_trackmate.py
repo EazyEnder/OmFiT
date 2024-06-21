@@ -18,9 +18,15 @@ from fiji.plugin.trackmate.gui import GuiUtils
 from fiji.plugin.trackmate import TrackMate
 from java.io import File
 import sys
+
+from ij.plugin.frame import RoiManager 
+from ij.gui import Roi,PolygonRoi
+
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence 
 
-DATA_DIR = "C:/Users/abc/omnipose/data"
+DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/wt3c12"
+
+ALSO_OPEN_ROI_MANAGER = True
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -67,6 +73,13 @@ def main(model_used = None):
 					X.append(int(positions_raw[i]))
 					Y.append(int(positions_raw[i+1]))
 				i += 2
+			if ALSO_OPEN_ROI_MANAGER:
+				rm = RoiManager.getInstance()
+				if not rm:
+					rm = RoiManager()
+				roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
+				roi.setPosition(int(time)+1)
+				rm.addRoi(roi)
 			spot = SpotRoi.createSpot(X,Y,1.)
 			model.addSpotTo(spot, int(time))
 	model.endUpdate()
@@ -84,8 +97,12 @@ def main(model_used = None):
 	imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
 	imp.show()
 	
+	if ALSO_OPEN_ROI_MANAGER:
+		rm = RoiManager.getInstance()
+		rm.runCommand("Associate", "true")
+		rm.runCommand("Show All")
+	
 	settings = Settings(imp)
-	settings.addAllAnalyzers()
 	
 	sm = SelectionModel(model)
 	ds = DisplaySettingsIO.readUserDefault()
@@ -102,6 +119,4 @@ def main(model_used = None):
 	GuiUtils.positionWindow( frame, imp.getWindow() );
 	frame.setVisible(True);
 			
-main(model_used="from01906")
-main(model_used="from01706")
 main(model_used="continuity1706")
