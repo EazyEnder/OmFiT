@@ -2,25 +2,28 @@
 Fiji script: Apply registration 
 """
 
+#Field
+POSITION = "wt5"
+#Path to the files
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+#Files that we will use / Color names
+COLORS_FILE = ["phase", "y", "r"]
+#COLORS_FILE = ["phase_cropped", "y_cropped", "r_cropped"]
+
+#Colors channels order
+COLORS = ["gray", "yellow", "red"]
+
+#If there is already a file with the channels merged, we'll use it (if REWRITE==False)
+REWRITE = False
+
+
+#-----------------------------------------------------
 import os
 from ij import IJ, ImagePlus
 from ij.io import FileSaver
 from ij.plugin import RGBStackMerge
 from plugin import Descriptor_based_series_registration
 from java.lang.reflect import Array
-
-
-
-POSITION = "wt5"
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
-#Files that we will use
-COLORS_FILE = ["phase", "y", "r"]
-#COLORS_FILE = ["phase_cropped", "y_cropped", "r_cropped"]
-#Colors channels order
-COLORS = ["gray", "yellow", "red"]
-
-#If there is already a file with the channels merged, we'll use it (if REWRITE==False)
-REWRITE = False
 
 def mergeChannels(channels_stacks, names):
 	print("Merging channels :" + str(names))

@@ -2,18 +2,26 @@
 Fiji script: Crop and divide each colony into stacks (using crop's csv file)
 """
 
+#Field
+POSITION = "wt5"
+#Path to the files
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+#Name of the tiff file that will be used
+FILE_NAME = "registered_arranged"
+
+CHANNEL_NAME = ["phase","y","r"]
+
+#Column index of the X positions
+ROI_CSV_OFFSET = 2
+
+#Just divide the main file to n files where n is the channel number
+JUST_DIVIDE_CHANNELS = False
+
+#-----------------------------------------------------------
+
 import os  
 from ij import IJ, ImagePlus, ImageStack
 from ij.io import FileSaver
-
-POSITION = "wt5"
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
-FILE_NAME = "registered_arranged"
-CHANNEL_NAME = ["phase","y","r"]
-
-ROI_CSV_OFFSET = 2
-
-JUST_DIVIDE_CHANNELS = False
 
 import csv
 def getCropsROIs():

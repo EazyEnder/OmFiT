@@ -2,12 +2,17 @@
 Convert a json file to a text file, only for the json exported using personnals scripts
 """
 
+#Field
+POSITION = "wt5"
+#Export path
+DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
+#Path to the json file
+JSON_PATH = DIR_PATH+"result.json"
+
+
+#----------------------------------------------------
 import os, sys
 import json
-
-POSITION = "wt5"
-DIR_PATH = "/media/irina/LIPhy-INFO/test/nice_ss30_nov13-20_2023/"+POSITION+"/"
-JSON_PATH = DIR_PATH+"result.json"
 
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)

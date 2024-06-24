@@ -1,6 +1,26 @@
 """
 Fiji script: Concatenate all the stacks/imgs together
+
+Settings:
 """
+
+#Field
+POSITION = "wt5"
+#Export path
+EXPORT_PATH = "/media/irina/5C00325A00323B7A/Zack/test/"+POSITION+"/"
+
+#list of path in order. The program will take field files from all the src paths. 
+SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"]
+#Color names
+COLORS = ["phase", "y", "r"]
+#MicroManager channel number, in the same order of COLORS
+MM_NAME= ["000" ,"001" ,"002"]
+#Minimum index for all src path
+IDX_FILE_BEGIN = 1
+#Maximum index for all src path. If there is no folder corresponding to the index -> just put an empty list.
+IDX_FILE_END = 12
+
+#------------------------------------------------------
 
 import os, sys
 from ij import IJ, ImagePlus, ImageStack  
@@ -9,19 +29,6 @@ from ij.io import FileSaver
 import json
 
 from datetime import datetime
-
-#concatenate all the imgs
-
-POSITION = "wt5"
-EXPORT_PATH = "/media/irina/5C00325A00323B7A/Zack/test/"+POSITION+"/"
-
-#list of path in order
-SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"]
-COLORS = ["phase", "y", "r"]
-MM_NAME= ["000" ,"001" ,"002"]
-IDX_FILE_BEGIN = 1
-#Maximum index for all src path
-IDX_FILE_END = 12
 
 #file_time = os.path.getmtime("")
 

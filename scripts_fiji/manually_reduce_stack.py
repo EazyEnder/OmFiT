@@ -4,16 +4,15 @@ First use stack_images.py
 Then you can use this script on the export dir
 """
 
-import os
-import json
-from ij.io import FileSaver
-from ij import IJ, ImagePlus, ImageStack  
-import copy
+#!!! the DIR NEED to contains only the channels stacks and a json file giving times. No more
 
-#the dir contains only the channels stacks and a json file giving times
-
+#Field
 POSITION = "wt5"
+#Path to the files
 DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+
+#For example (2,10) gives [2,10] so all indexes between 2 and 10 will be removed, i.e 2 <= i <= 10
+
 #INTERVALS_TO_REMOVE = [(192,-1),(96,99),(141,145), (41,42), (180,185)] #WT4
 #INTERVALS_TO_REMOVE = [(42,42),(92,95),(97,98),(143,146),(149,150),(181,186),(200,-1)] #WT3
 INTERVALS_TO_REMOVE = [(42,42),(89,89),(97,98),(143,144),(147,148),(185,185),(145,-1), (173,177)] #WT5
@@ -26,8 +25,18 @@ INTERVALS_TO_REMOVE = [(42,42),(89,89),(97,98),(143,144),(147,148),(185,185),(14
 #INTERVALS_TO_REMOVE = [(0,2),(46,46),(54,54),(56,58),(102,104),(190,190),(199,200),(207,-1)] #DT3 TRANSI
 #INTERVALS_TO_REMOVE = [(0,2),(46,54),(56,56),(58,58),(102,102),(104,104),(190,190),(199,199),(200,200),(217,-1)] #DT0 TRANSI
 
+#Just modify the json file, not the .tiff
 ONLY_JSON = False
+#Just modify the file which have the ONLY_STRING (string var) in his name
 ONLY_STRING = None
+
+#------------------------------------------------------------------
+
+import os
+import json
+from ij.io import FileSaver
+from ij import IJ, ImagePlus, ImageStack  
+import copy
 
 
 STATIC_DATA = None
@@ -57,6 +66,8 @@ def modifyJson(file_name):
 	 				continue
 	 			index_to_keep.append(i)
 	 		for k in data[channel][index].keys():
+	 			if "old_index" in k:
+		 			continue
 		 		if not("global_index" in k):
 		 			data[channel][index][k] = [data[channel][index][k][i] for i in index_to_keep]
 		 		else:

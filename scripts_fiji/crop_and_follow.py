@@ -2,19 +2,25 @@
 Fiji script: Crop & Follow through time a part of a stack 
 """
 
+#Field
+POSITION = "wt3"
+#Path to the files
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+
+#Divide the movie into time intervals, the end of a time interval is before a huge move
+TIMES = [(0,97),(98,-1)]
+#REGIONS is a list of:
+#[(POSITION X & Y),(SIZE WIDTH & HEIGHT)]
+REGIONS = [[(1469,1163),(579,579)],[(1052,473),(579,579)]] #wt2 transi
+
+#Channels name
+CHANNELS = ["phase", "y", "r"]
+
+#--------------------------------------------
+
 import os  
 from ij import IJ, ImagePlus, ImageStack
 from ij.io import FileSaver
-
-POSITION = "wt3"
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
-
-TIMES = [(0,97),(98,-1)]
-#[(POSITION X & Y),(SIZE WIDTH & HEIGHT)]
-#REGIONS = [[(587,4),(390,214)],[(464,266),(390,214)]] #wt0 transi
-REGIONS = [[(1469,1163),(579,579)],[(1052,473),(579,579)]] #wt2 transi
-
-CHANNELS = ["phase", "y", "r"]
 
 def crop(imp):
 	stack = imp.getImageStack()

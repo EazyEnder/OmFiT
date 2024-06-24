@@ -24,9 +24,12 @@ from ij.gui import Roi,PolygonRoi
 
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence 
 
-DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/wt3c12"
+COLONY_NAME = "dt0c2"
+DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 ALSO_OPEN_ROI_MANAGER = True
+#If you just want to import ROIs to the ROI MANAGER, you can make the bool above True and the bool OPEN_TRACKMATE false
+OPEN_TRACKMATE = False
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -36,9 +39,10 @@ def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
 
 def main(model_used = None):
-	model = Model()
-	model.setLogger(Logger.IJ_LOGGER)
-	model.beginUpdate()
+	if OPEN_TRACKMATE:
+		model = Model()
+		model.setLogger(Logger.IJ_LOGGER)
+		model.beginUpdate()
 	
 	unsorted_times = []
 	unsorted_imgs_path = []
@@ -80,9 +84,11 @@ def main(model_used = None):
 				roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
 				roi.setPosition(int(time)+1)
 				rm.addRoi(roi)
-			spot = SpotRoi.createSpot(X,Y,1.)
-			model.addSpotTo(spot, int(time))
-	model.endUpdate()
+			if OPEN_TRACKMATE:
+				spot = SpotRoi.createSpot(X,Y,1.)
+				model.addSpotTo(spot, int(time))
+	if OPEN_TRACKMATE:
+		model.endUpdate()
 	
 	imgs = []
 	for f in argsort(unsorted_times):	
@@ -92,31 +98,40 @@ def main(model_used = None):
 	for img in imgs:
 		stack.addSlice(img.getProcessor())
 	
-	imp = ImagePlus(model_used,stack)
+	imp = ImagePlus(COLONY_NAME + "_" + model_used,stack)
+	if model_used is None:
+		imp = ImagePlus(COLONY_NAME,stack)
 	imp_dims = imp.getDimensions()
 	imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
 	imp.show()
 	
+	fi = imp.getFileInfo()
+	fi.directory = DATA_DIR
+	imp.setFileInfo(fi)
+	
 	if ALSO_OPEN_ROI_MANAGER:
 		rm = RoiManager.getInstance()
+		IJ.run("Remove Overlay", "")
+		rm.runCommand(imp,"Show All")
 		rm.runCommand("Associate", "true")
 		rm.runCommand("Show All")
 	
 	settings = Settings(imp)
 	
-	sm = SelectionModel(model)
-	ds = DisplaySettingsIO.readUserDefault()
-	
-	displayer =  HyperStackDisplayer(model, sm, imp, ds)
-	displayer.render()
-	
-	panelIdentifier = "ChooseTracker";
-	trackmate = TrackMate(model, settings)
-	sequence = TrackMateWizardSequence(trackmate, sm, ds);
-	sequence.setCurrent(panelIdentifier);
-	frame = sequence.run("TrackMate on " + imp.getShortTitle() );
-	frame.setIconImage( Icons.TRACKMATE_ICON.getImage() );
-	GuiUtils.positionWindow( frame, imp.getWindow() );
-	frame.setVisible(True);
+	if OPEN_TRACKMATE:
+		sm = SelectionModel(model)
+		ds = DisplaySettingsIO.readUserDefault()
+		
+		displayer =  HyperStackDisplayer(model, sm, imp, ds)
+		displayer.render()
+		
+		panelIdentifier = "ChooseTracker"
+		trackmate = TrackMate(model, settings)
+		sequence = TrackMateWizardSequence(trackmate, sm, ds)
+		sequence.setCurrent(panelIdentifier)
+		frame = sequence.run("TrackMate on " + imp.getShortTitle() )
+		frame.setIconImage( Icons.TRACKMATE_ICON.getImage() )
+		GuiUtils.positionWindow( frame, imp.getWindow() )
+		frame.setVisible(True)
 			
 main(model_used="continuity1706")
