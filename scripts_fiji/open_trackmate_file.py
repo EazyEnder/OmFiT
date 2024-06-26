@@ -2,6 +2,15 @@
 Fiji script: Open trackmate xml file
 """
 
+#Path to the xml file, if the img linked to the file is None then the img that will be opened is SAME_ROOT/SAME_NAME.tif
+FILE_PATH = '/media/irina/5C00325A00323B7A/Zack/data/export/wt5c13/wt5c13_continuity1706.xml'
+
+#If the spots just appears on the first frame, this means that the dimensions are switched (Z <-> T) so change the boolean.
+CHANGE_DIMENSIONS = False
+
+#----------------------------------------------------------------
+
+from ij import IJ, ImagePlus, ImageStack
 from fiji.plugin.trackmate.visualization.hyperstack import HyperStackDisplayer
 from fiji.plugin.trackmate.io import TmXmlReader
 from fiji.plugin.trackmate import Logger
@@ -20,7 +29,7 @@ from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-file = File( '/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/wt5/wt5_10_phase.xml' )
+file = File( FILE_PATH )
 logger = Logger.IJ_LOGGER
 
 reader = TmXmlReader( file )
@@ -38,8 +47,11 @@ spots = model.getSpots()
 #	rm = RoiManager()
 
 imp = reader.readImage()
-imp_dims = imp.getDimensions()
-imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
+if imp is None:
+	imp = IJ.openImage(FILE_PATH.split(".")[0]+".tif")
+if CHANGE_DIMENSIONS:
+	imp_dims = imp.getDimensions()
+	imp.setDimensions(imp_dims[2], imp_dims[4], imp_dims[3]) 
 imp.show()
 settings = reader.readSettings( imp )
 

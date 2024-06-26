@@ -1,6 +1,25 @@
 """
 Fiji script: Import omnipose files (outlines .txt) to trackmate using SpotROI
+
+The outline file need to be named as: {FIELD}_{COLONY NUMBER}_phase_{TIME}_{MODEL EXTENDED NAME}_cp_outlines
+{MODEL_EXTENDED_NAME} = {MODEL_NAME}_somestuff
+Like: dt0_2_phase_0000_continuity1706_2000_3_cp_outlines
+->FIELD is dt0; C_NUMBER is 2; TIME is 0000; and MODEL_NAME is continuity1706
+
 """
+
+COLONY_NAME = "wt5c2"
+DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
+
+#Keep the ROI Manager with all the ROIs
+ALSO_OPEN_ROI_MANAGER = True
+#If you just want to import ROIs to the ROI MANAGER, you can make the bool above True and the bool OPEN_TRACKMATE false
+#Open TM or not, if False the script will just import the file ROIs to the manager
+OPEN_TRACKMATE = False
+
+#See at the end of the script to choose & import multiple models.
+
+#-----------------------------------------------------------------
 
 from fiji.plugin.trackmate import SpotRoi
 import os
@@ -23,13 +42,6 @@ from ij.plugin.frame import RoiManager
 from ij.gui import Roi,PolygonRoi
 
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence 
-
-COLONY_NAME = "dt0c2"
-DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
-
-ALSO_OPEN_ROI_MANAGER = True
-#If you just want to import ROIs to the ROI MANAGER, you can make the bool above True and the bool OPEN_TRACKMATE false
-OPEN_TRACKMATE = False
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -133,5 +145,6 @@ def main(model_used = None):
 		frame.setIconImage( Icons.TRACKMATE_ICON.getImage() )
 		GuiUtils.positionWindow( frame, imp.getWindow() )
 		frame.setVisible(True)
-			
+
+#You can choose the model_used if you have more than one outline file per image
 main(model_used="continuity1706")

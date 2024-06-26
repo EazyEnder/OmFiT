@@ -1,8 +1,27 @@
 """
 Fiji script: An interface that allows the user to dynamically merge/divide cells or even remove a slice & preserving the json structure
+
+The JSON need to have the same name as the parent folder and be in the same root of the imgs.
 """
 
+#Print errors in ImageJ Logger
+LOG_ERROR = True
+#Print errors & infos in ImageJ Logger
+LOG = True
+
+#Modify the json file when remove slice
+MODIFY_JSON = True
+
+# x <= 0 -> No auto save; Integer = Interval between each save
+AUTO_SAVE = 5
+#If None you'll need to have an img opened & the saves will have the img name (+ the suffix/index)
+SAVE_NAME = None
+#If None you'll need to have an img opened & the saves will be in the same folder of the img
+SAVES_DIR = None
+#--------------------------------------------------------
+
 from javax.swing import JFrame, JButton, JOptionPane, JPanel
+from java.awt import GridLayout
 from ij import IJ, WindowManager as WM
 import math
 
@@ -25,9 +44,111 @@ from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence
 import os
 import json
 
-LOG = False
-MODIFY_JSON = True
+OPERATION_COUNTER = 0
+LAST_SAVE_OP = 0
 
+def autosave():
+	global OPERATION_COUNTER
+	global LAST_SAVE_OP
+  	OPERATION_COUNTER += 1
+
+	if AUTO_SAVE <= 0:
+		return
+	if not(OPERATION_COUNTER % AUTO_SAVE == 0):
+		return
+	if OPERATION_COUNTER == LAST_SAVE_OP:
+		return
+		
+	save(None,suffix=str(OPERATION_COUNTER))
+	LAST_SAVE_OP = OPERATION_COUNTER
+
+def load(event):
+	filename = IJ.getFilePath("File that'll be loaded")
+	if filename is None:
+		print "Folder not found"
+		if LOG or LOG_ERROR:
+			IJ.log("Folder not found")
+		return
+	pure_name = filename.split("/")[-1]
+	if not("txt" in pure_name.split(".")[-1]):
+		print("The file need to be a txt file, are you sure this is the good one ?")
+		if LOG or LOG_ERROR:
+			IJ.log("The file need to be a txt file, are you sure this is the good one ?")
+		return
+	rm = RoiManager.getInstance()
+	if not rm:
+		rm = RoiManager()
+	rm.reset()
+	
+	txt = open(filename, "r")
+	for l in txt:
+		line = l.split(":")[-1]
+		positions_raw = line.split(",")
+		i = 0
+		X = []
+		Y = []
+		while i < len(positions_raw):
+			if i+1 < len(positions_raw):
+				X.append(int(positions_raw[i]))
+				Y.append(int(positions_raw[i+1]))
+			i += 2
+		roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
+		roi.setPosition(int(l.split(":")[0]))
+		rm.addRoi(roi)
+	txt.close()
+	
+def setSaveFolder(event):
+	save_folder = IJ.getDirectory("Save Folder")
+	global SAVES_DIR
+	if not(save_folder is None):
+		SAVES_DIR = save_folder
+
+def save(event,suffix="manual"):
+	imp = WM.getCurrentImage()
+	if not(imp) and (SAVES_DIR is None or SAVE_NAME is None):
+		print "Open an image first or modify saves folder."
+		if LOG or LOG_ERROR:
+			IJ.log("Open an image first or modify saves folder.")
+		return
+
+	rm = RoiManager.getInstance()
+	if not(rm):
+	  	print "Open ROI Manager first."
+	  	if LOG or LOG_ERROR:
+	  		IJ.log("Open ROI Manager first.")
+  		return
+  	
+  	txt = None
+  	filename = SAVE_NAME
+  	if SAVE_NAME is None:
+  		filename = imp.getTitle()+"_save"
+  	
+  	if SAVES_DIR is None:
+  		fi = imp.getOriginalFileInfo()
+		directory = fi.directory
+  		txt = open(os.path.join(directory,filename+"_"+suffix+".txt"),"w")
+  	else:
+  		txt = open(os.path.join(SAVES_DIR,filename+"_"+suffix+".txt"),"w")
+  		
+  	for roi in rm.getRoisAsArray():
+		roi_slice = roi.getPosition()
+		string = str(roi_slice) + ":"
+		if type(roi) is ShapeRoi:
+			roi = PolygonRoi(roi.getPolygon(),Roi.POLYGON)
+			roi.setPosition(roi_slice)
+		X = [int(x+roi.getBoundingRect().x) for x in roi.getXCoordinates()]
+		Y = [int(y+roi.getBoundingRect().y) for y in roi.getYCoordinates()]
+		for i in range(len(X)):
+			if i != 0:
+				string += ","
+			string += str(X[i]) + "," + str(Y[i])
+		txt.write(string+"\n")
+	txt.close()
+	
+	print("Saved: "+suffix)
+	if LOG:
+		IJ.log("Saved: "+suffix)
+	
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
   
@@ -36,33 +157,33 @@ def divide(event):
   imp = WM.getCurrentImage()
   if not(imp):
   	print "Open an image first."
-  	if LOG:
+  	if LOG or LOG_ERROR:
   		IJ.log("Open an image first.")
   	return
   	
   rm = RoiManager.getInstance()
   if not(rm):
   	print "Open ROI Manager first."
-  	if LOG:
+  	if LOG or LOG_ERROR:
   		IJ.log("Open ROI Manager first.")
   	return
   
   selection = rm.getSelectedRoisAsArray()
   if not(len(selection) == 1):
   	print "You need to select only 1 ROIs"
-  	if LOG:
+  	if LOG or LOG_ERROR:
   		IJ.log("You need to select only 1 ROIs")
   	return
   	
   line = imp.getRoi()
   if not(line):
   	print "You need to draw a line first"
-  	if LOG:
+  	if LOG or LOG_ERROR:
   		IJ.log("You need to draw a line first")
   	return
   if not(line.isLine):
   	print "Selection isn't a line"
-  	if LOG:
+  	if LOG or LOG_ERROR:
   		IJ.log("Selection isn't a line")
   	return
   
@@ -103,18 +224,20 @@ def divide(event):
   	IJ.log("ROI divided")
   print "ROI divided"
   
+  autosave()
+  
 def merge(event):
 	imp = WM.getCurrentImage()
 	if not(imp):
 		print "Open an image first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open an image first.")
 		return
 		
 	rm = RoiManager.getInstance()
 	if not(rm):
 		print "Open ROI Manager first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open ROI Manager first.")
 		return
 	
@@ -131,19 +254,20 @@ def merge(event):
 	if LOG:
 		IJ.log("ROIs merged")
 	print "ROIs merged"
+	autosave()
 	
 def openTrackMate(event):
 	imp = WM.getCurrentImage()
 	if not(imp):
 		print "Open an image first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open an image first.")
 		return
 		
 	rm = RoiManager.getInstance()
 	if not(rm):
 		print "Open ROI Manager first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open ROI Manager first.")
 		return
 		
@@ -191,14 +315,14 @@ def removeFrame(event):
 	imp = WM.getCurrentImage()
 	if not(imp):
 		print "Open an image first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open an image first.")
 		return
 		
 	rm = RoiManager.getInstance()
 	if not(rm):
 		print "Open ROI Manager first."
-		if LOG:
+		if LOG or LOG_ERROR:
 			IJ.log("Open ROI Manager first.")
 		return
 		
@@ -263,7 +387,16 @@ def removeFrame(event):
 	if LOG:
 		IJ.log("Frame "+str(slice_index)+" deleted")
 	print("Frame "+str(slice_index)+" deleted")
-			
+	autosave()
+
+def clearOperations(event):
+	global OPERATION_COUNTER
+	global LAST_SAVE_OP
+	OPERATION_COUNTER = 0
+	LAST_SAVE_OP = 0
+	print("Operations counter reset to 0")
+	if LOG:
+		IJ.log("Operations counter reset to 0")
 		
 	
 
@@ -273,6 +406,11 @@ divide_button = JButton("Divide", actionPerformed=divide)
 merge_button = JButton("Merge", actionPerformed=merge)  
 remove_frame_button = JButton("Remove frame", actionPerformed=removeFrame)  
 open_trackmate_button = JButton("Open TrackMate", actionPerformed=openTrackMate)
+save_button = JButton("Save", actionPerformed=save)
+load_button = JButton("Load", actionPerformed=load)
+set_savefolder_button = JButton("Set Save Folder", actionPerformed=setSaveFolder)
+clear_button = JButton("Clear Op", actionPerformed=clearOperations)
+
 #Add a button to add a custom selection to ROI
 #Add shortcut keys
 
@@ -281,5 +419,16 @@ panel.add(divide_button)
 panel.add(merge_button) 
 panel.add(remove_frame_button) 
 panel.add(open_trackmate_button)
-frame.add(panel)
+
+panel_2 = JPanel()
+panel_2.add(clear_button)
+panel_2.add(save_button)
+panel_2.add(load_button)
+panel_2.add(set_savefolder_button)
+
+all_pan = JPanel(GridLayout(2, 1))
+all_pan.add(panel)
+all_pan.add(panel_2)
+
+frame.add(all_pan)
 frame.pack() 
