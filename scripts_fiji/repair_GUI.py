@@ -2,6 +2,9 @@
 Fiji script: An interface that allows the user to dynamically merge/divide cells or even remove a slice & preserving the json structure
 
 The JSON need to have the same name as the parent folder and be in the same root of the imgs.
+
+To repair a movie, you first need ... a movie. And not a random one, but a uniformised one. 
+That's why the script "import_omnipose_to_trackmate" exists. Launch the script with the settings: OPEN_TRACKMATE = False & ALSO_OPEN_ROI_MANAGER = True.
 """
 
 #Print errors in ImageJ Logger
@@ -398,9 +401,33 @@ def clearOperations(event):
 	if LOG:
 		IJ.log("Operations counter reset to 0")
 		
+#/-------------------CUSTOM REPAIR ALGORITHM--------------------------/
+def correctTree(event):
+	imp = WM.getCurrentImage()
+	if not(imp):
+		print "Open an image first."
+		if LOG or LOG_ERROR:
+			IJ.log("Open an image first.")
+		return
+		
+	fi = imp.getOriginalFileInfo()
+	directory = fi.directory
+	colony_name = directory.split("/")[-1]
+	model_name = imp.getName().split(".")[0].split("_")[-1]
+	path = os.path.join(DATA_DIR,colony_name+"_"+model_name+".xml")
+	if not(os.path.exists(path)):
+		string = "No xml file named as: {COLONY_NAME}_{MODEL_NAME}.xml found in the folder. Are you sure that you save trackmate tracking ?"
+		print(string)
+		if LOG OR log_error:
+			IJ.log(string)
+			
+	file = File(path)
+
+	return
+		
 	
 
-#/--------------Interface------------------/
+#/--------------INTERFACE------------------/
 frame = JFrame("Repair GUI", visible=True)  
 divide_button = JButton("Divide", actionPerformed=divide)
 merge_button = JButton("Merge", actionPerformed=merge)  
@@ -410,6 +437,7 @@ save_button = JButton("Save", actionPerformed=save)
 load_button = JButton("Load", actionPerformed=load)
 set_savefolder_button = JButton("Set Save Folder", actionPerformed=setSaveFolder)
 clear_button = JButton("Clear Op", actionPerformed=clearOperations)
+correction_button = JButton("Live repair of cells (EXPERIMENTAL)", actionPerformed=correctTree)
 
 #Add a button to add a custom selection to ROI
 #Add shortcut keys
@@ -426,9 +454,13 @@ panel_2.add(save_button)
 panel_2.add(load_button)
 panel_2.add(set_savefolder_button)
 
-all_pan = JPanel(GridLayout(2, 1))
+panel_3 = JPanel()
+panel_3.add(correction_button)
+
+all_pan = JPanel(GridLayout(3, 1))
 all_pan.add(panel)
 all_pan.add(panel_2)
+all_pan.add(panel_3)
 
 frame.add(all_pan)
 frame.pack() 

@@ -2,12 +2,12 @@
 Fiji script: Update stack following the history between the stack's json & the newest/updated json
 """
 
-COLONY_NAME = "wt5c2"
+COLONY_NAME = "wt5c14"
 
 OLD_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/time/"+COLONY_NAME.split("c")[0]+".json"
 NEW_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME+"/"+COLONY_NAME+".json"
 
-OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+COLONY_NAME.split("c")[0]+"/"+COLONY_NAME+"_y.tif"
+OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+COLONY_NAME.split("c")[0].replace("T","")+"/"+COLONY_NAME.replace("c","_").replace("T","")+"_y.tif"
 EXPORT_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #-----------------------------------------------------------------------------------
@@ -30,13 +30,13 @@ slices_to_remove = []
 channel = old_data.keys()[0]
 for index in old_data[channel].keys():
 	new_oii = new_data[channel][index]["old_index"]
-	old_gii = new_data[channel][index]["old_index"]
+	old_gii = old_data[channel][index]["global_index"]
 	for i,oii in enumerate(old_data[channel][index]["old_index"]):
 		if not(oii in new_oii):
 			slices_to_remove.append(old_gii[i])
 
 if len(slices_to_remove) != 0:
-	slices_to_remove = [slices_to_remove[i] in argsort(slices_to_remove)]
+	slices_to_remove = [slices_to_remove[i] for i in argsort(slices_to_remove)]
 
 old_name = OLD_TIFF.split("/")[-1].replace("c","_")
 imp = IJ.openImage(os.path.join(OLD_TIFF.split(OLD_TIFF.split("/")[-1])[0],old_name))
