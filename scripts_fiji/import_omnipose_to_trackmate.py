@@ -8,7 +8,7 @@ Like: dt0_2_phase_0000_continuity1706_2000_3_cp_outlines
 
 """
 
-COLONY_NAME = "wt5c14"
+COLONY_NAME = "wt3c9"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Keep the ROI Manager with all the ROIs

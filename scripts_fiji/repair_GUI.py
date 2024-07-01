@@ -21,6 +21,11 @@ AUTO_SAVE = 5
 SAVE_NAME = None
 #If None you'll need to have an img opened & the saves will be in the same folder of the img
 SAVES_DIR = None
+
+
+MAX_DESCENDANT = 1
+MAX_ANCESTOR = 5
+MINIMUM_SCORE = 0.1
 #--------------------------------------------------------
 
 from javax.swing import JFrame, JButton, JOptionPane, JPanel
@@ -44,8 +49,10 @@ from fiji.plugin.trackmate.gui import GuiUtils
 from fiji.plugin.trackmate import TrackMate
 from fiji.plugin.trackmate import SpotRoi
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence
-import os
+import os, sys
 import json
+import copy
+from java.io import File
 
 OPERATION_COUNTER = 0
 LAST_SAVE_OP = 0
@@ -402,6 +409,166 @@ def clearOperations(event):
 		IJ.log("Operations counter reset to 0")
 		
 #/-------------------CUSTOM REPAIR ALGORITHM--------------------------/
+
+def distTo(p1,p2):
+	x = p2[0]-p1[0]
+	y = p2[1]-p1[1]
+	return math.sqrt(x**2+y**2)
+def divideUsingLine(inter,dir,pts1,pts2):
+	"""
+		Divide points (pts1 + pts2) in two new groups separated by a line
+		Return the two new groups and a score (relevant if pts1 and pts2 are not null/empty). 
+			If the score is 0 then the new groups created are identics to the old ones.
+	"""
+	D = dir
+	
+	points = []
+	points.extend(pts1)
+	points.extend(pts2)
+	
+	new_pts_1 = []
+	new_pts_2 = []
+	angle_dir = math.atan2(D[1],D[0])
+	for p in points:
+		x = p[0]
+		y = p[1]
+		P = (x-inter[0],y-inter[1])
+		angle = math.atan2(P[1], P[0]) - angle_dir
+		if angle < 0:
+			new_pts_1.append((x,y))
+		else:
+			new_pts_2.append((x,y))
+			
+	score1 = 0
+	score2 = 0
+	for p in new_pts_1:
+		if p in pts1:
+			score1 += 1.
+		if p in pts2:
+			score2 -= 1
+	score1 = score1 / len(pts1)
+	
+	return (new_pts_1,new_pts_2,score1)
+	
+def computeIntersection(cell1,cell2,frame=0):
+	"""
+		Return the intersection point and the division line (line that cuts the space in two sub-spaces with for each one a cell in it)
+			(tuple, tuple)
+	"""
+
+	if cell1["frame"] != cell2["frame"]:
+		print("Cant compute intersection between two cells because they are not presents at the same frame")
+		return
+	
+	#max distance between two points (in pixels):
+	epsilon = 10
+	
+	points = []
+	for p1 in cell1["roi"]:
+		for p2 in cell2["roi"]:
+			dist = distTo(p1,p2)
+			if dist > epsilon:
+				continue
+			if not(p1 in points):
+				points.append(p1)
+			if not(p2 in points):
+				points.append(p2)
+				
+	if len(points) < 1:
+		print("Cant compute intersection between two cells because no neighbors points found, try to increase the epsilon")
+		return
+		
+	x_sum = 0
+	y_sum = 0
+	for p in points:
+		x_sum += p[0]
+		y_sum += p[1]
+	intersection = (x_sum/len(points),y_sum/len(points))
+	
+	#Dichotomy
+	precision = 0.01
+	iterations = 0
+	
+	angle = 0
+	angle_step = 3.141/2*0.99
+	_,_,score_right = divideUsingLine(intersection,(math.cos(angle+angle_step),math.sin(angle+angle_step)),cell1["roi"],cell2["roi"])
+	_,_,score_left = divideUsingLine(intersection,(math.cos(angle-angle_step),math.sin(angle-angle_step)),cell1["roi"],cell2["roi"])
+	_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
+	while iterations < 25 and score<1.-precision:
+		#print score
+		if score_right == 1.:
+			score = score_right
+			break
+		if score_left == 1.:
+			score = score_left
+			break
+	
+		iterations += 1
+		angle_step *= 0.5
+		if score > score_right and score > score_left:
+			_,_,score_left = divideUsingLine(intersection,(math.cos(angle-angle_step),math.sin(angle-angle_step)),cell1["roi"],cell2["roi"])
+			_,_,score_right = divideUsingLine(intersection,(math.cos(angle+angle_step),math.sin(angle+angle_step)),cell1["roi"],cell2["roi"])
+			continue
+			
+		if score_right>score_left:
+			score_left = score
+			angle = angle+angle_step
+		else:
+			score_right = score
+			angle = angle-angle_step
+			
+		_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
+	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Dichotomy ended after "+str(iterations)+" iterations and a score of "+str(score))
+	if LOG or LOG_ERROR:
+		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Dichotomy ended after "+str(iterations)+" iterations and a score of "+str(score))
+	if score < MINIMUM_SCORE:
+		print("  |>  Score too low -> Cell division aborded")
+		if LOG or LOG_ERROR:
+			IJ.log("  |>  Score too low -> Cell division aborded")
+		return None
+	
+	return ( intersection , (math.cos(angle),math.sin(angle)) )
+	
+def forceDivide(cells, new_cells,id,parentid,ancestor):
+	
+	child1 = cells[parentid]["children"][0]
+	child2 = cells[parentid]["children"][1]
+	for _ in range(ancestor-1):
+		if not(len(cells[child1]["children"]) > 0 and len(cells[child2]["children"]) > 0):
+			break
+		child1 = cells[child1]["children"][0]
+		child2 = cells[child2]["children"][0]
+	
+	
+	tpl = computeIntersection(cells[child1],cells[child2],frame=cells[id]["frame"])
+	if tpl is None:
+		return new_cells
+  	intersection, direction = tpl
+  	
+	cell = cells[id]
+	ROI1, ROI2, _ = divideUsingLine(intersection, direction, cell["roi"], [])
+		
+	new_cells[id+"c1"] = {
+		"name": id+"c1",
+		"frame": cell["frame"],
+		"center": (0,0),
+		"parent": None,
+		"children": [],
+		"roi": ROI1
+	}
+	new_cells[id+"c2"] = {
+		"name": id+"c2",
+		"frame": cell["frame"],
+		"center": (0,0),
+		"parent": None,
+		"children": [],
+		"roi": ROI2
+	}
+	
+	new_cells[id] = None
+	
+	return new_cells
+
 def correctTree(event):
 	imp = WM.getCurrentImage()
 	if not(imp):
@@ -412,21 +579,156 @@ def correctTree(event):
 		
 	fi = imp.getOriginalFileInfo()
 	directory = fi.directory
-	colony_name = directory.split("/")[-1]
-	model_name = imp.getName().split(".")[0].split("_")[-1]
-	path = os.path.join(DATA_DIR,colony_name+"_"+model_name+".xml")
+	colony_name = directory.split("/")[-2]
+	model_name = imp.getTitle().split(".")[0].split("_")[-1]
+	path = os.path.join(directory,colony_name+"_"+model_name+".xml")
 	if not(os.path.exists(path)):
 		string = "No xml file named as: {COLONY_NAME}_{MODEL_NAME}.xml found in the folder. Are you sure that you save trackmate tracking ?"
 		print(string)
-		if LOG OR log_error:
+		if LOG or log_error:
 			IJ.log(string)
-			
+		return
+
 	file = File(path)
-
-	return
-		
+	reader = TmXmlReader( file )
+	if not reader.isReadingOk():
+	    sys.exit(reader.getErrorMessage())
+	    
+	model = reader.getModel()
+	sm = SelectionModel(model)
 	
+	#convert trackmate spots & tracks to custom objects : "cells"
+	cells = {}
+	spots = model.getSpots()
+	rm = RoiManager.getInstance()
+	if not rm:
+		rm = RoiManager()
 
+	for i,spot in enumerate(spots.iterable(True)):
+	
+		frame = int(spot.getFeature("FRAME"))
+		roi = spot.getRoi()
+		X = [int(x+spot.getDoublePosition(0)) for x in roi.x]
+		Y = [int(y+spot.getDoublePosition(1)) for y in roi.y]
+		roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
+	
+		cells[spot.getName()] = {
+		"name": spot.getName(),
+		"frame": frame,
+		"center": (round(spot.getDoublePosition(0),2),round(spot.getDoublePosition(1),2)),
+		"parent": None,
+		"children": [],
+		"roi": [(X[t], Y[t]) for t in range(len(X))]
+		}
+
+	
+	trackIDs = model.getTrackModel().trackIDs(True)
+	for id in trackIDs:
+	    edges = model.getTrackModel().trackEdges(id)
+	    for edge in edges:
+	    	parent = str(edge).split(" : ")[0].split("(")[-1]
+	    	child = str(edge).split(" : ")[1].split(")")[0]
+	    	cells[parent]["children"].append(child)
+	    	cells[child]["parent"] = parent
+	    	
+	new_cells = copy.deepcopy(cells)
+	
+	toModify = []
+	
+	modifications = 0
+	for cellid in new_cells.keys():
+		if not(cellid in new_cells.keys()):
+			continue
+		cell = new_cells[cellid]
+		
+		if cell["parent"] is None:
+			continue
+		if cells[cell["parent"]]["parent"] is None:
+			continue
+		if len(cell["children"]) <= 0:
+			continue
+		
+		#Get the ancestor
+		parent_used = cells[cells[cell["parent"]]["parent"]]
+		up_chi = parent_used["children"]
+		last_up_id = cell["parent"]
+		ancestor=2
+		flag = False
+		while(ancestor < MAX_ANCESTOR and not(flag)):
+			if(len(up_chi) < 2):
+				if(parent_used["parent"] is None):
+				    flag = True
+				    break
+				ancestor += 1
+				parent_used = cells[parent_used["parent"]]
+				last_up_id = parent_used["name"]
+				up_chi = parent_used["children"]
+				if(len(up_chi)>=2):
+				    break
+			else:
+			    break
+		if flag:
+			continue
+		if(len(up_chi)<2):
+			continue
+			
+		flag = False
+		for child in up_chi:
+			if child == last_up_id:
+				continue
+			
+			cc = child
+			for i in range(ancestor-1):
+				if len(cells[cc]["children"]) <= 0:
+					flag = True
+					break
+				cc = cells[cc]["children"][0]
+			if flag:
+				break
+		if not(flag):
+			continue
+
+
+		child_used = cell
+		descendant = 0
+		while(descendant < MAX_DESCENDANT):
+			if len(child_used["children"]) >= 2:
+				break
+			descendant += 1
+			if len(child_used["children"]) == 0:
+				break
+			child_used = cells[child_used["children"][0]]
+		if len(child_used["children"]) < 2 or len(child_used["children"]) == 0:
+			continue
+
+		toModify.append((cellid,parent_used["name"],ancestor))
+		modifications += 1
+
+	print(str(modifications) + " divisions found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
+	if LOG or LOG_ERROR:
+		IJ.log(str(modifications) + " divisions found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
+
+
+	for id,parentid,ancestor in toModify:
+		new_cells = forceDivide(cells,new_cells,id,parentid,ancestor)
+	
+	#convert to ROIs
+	rm.reset()
+	for cellid in new_cells.keys():
+		cell = new_cells[cellid]
+		if cell is None:
+			continue
+		border = cell["roi"]
+		roi = PolygonRoi([b[0] for b in border],[b[1] for b in border],len(border),Roi.POLYGON)
+		roi.setPosition(cell["frame"]+1)
+		rm.addRoi(roi)
+		
+	print("Repair done")
+	if LOG or LOG_ERROR:
+		IJ.log("Repair done")
+
+	return	
+			
 #/--------------INTERFACE------------------/
 frame = JFrame("Repair GUI", visible=True)  
 divide_button = JButton("Divide", actionPerformed=divide)
