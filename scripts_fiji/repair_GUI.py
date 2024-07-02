@@ -22,10 +22,12 @@ SAVE_NAME = None
 #If None you'll need to have an img opened & the saves will be in the same folder of the img
 SAVES_DIR = None
 
-
-MAX_DESCENDANT = 1
+#Max where the algo will ascend to verify divisions
 MAX_ANCESTOR = 5
-MINIMUM_SCORE = 0.1
+#Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
+MAX_DESCENDANT = 1
+#Minimum division direction score, if the score is too low then the cell will have a wrong cut so better to manually correct than have a correction that is false.
+MINIMUM_SCORE = 0.8
 #--------------------------------------------------------
 
 from javax.swing import JFrame, JButton, JOptionPane, JPanel
@@ -53,6 +55,7 @@ import os, sys
 import json
 import copy
 from java.io import File
+from random import random
 
 OPERATION_COUNTER = 0
 LAST_SAVE_OP = 0
@@ -485,42 +488,23 @@ def computeIntersection(cell1,cell2,frame=0):
 		y_sum += p[1]
 	intersection = (x_sum/len(points),y_sum/len(points))
 	
-	#Dichotomy
-	precision = 0.01
+	#RANDOM BCS WHY NOT (dicho doesn't work)
+	precision = 0.1
 	iterations = 0
 	
 	angle = 0
-	angle_step = 3.141/2*0.99
-	_,_,score_right = divideUsingLine(intersection,(math.cos(angle+angle_step),math.sin(angle+angle_step)),cell1["roi"],cell2["roi"])
-	_,_,score_left = divideUsingLine(intersection,(math.cos(angle-angle_step),math.sin(angle-angle_step)),cell1["roi"],cell2["roi"])
 	_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
-	while iterations < 25 and score<1.-precision:
-		#print score
-		if score_right == 1.:
-			score = score_right
-			break
-		if score_left == 1.:
-			score = score_left
-			break
-	
+	while iterations < 500 and score<1.-precision:
 		iterations += 1
-		angle_step *= 0.5
-		if score > score_right and score > score_left:
-			_,_,score_left = divideUsingLine(intersection,(math.cos(angle-angle_step),math.sin(angle-angle_step)),cell1["roi"],cell2["roi"])
-			_,_,score_right = divideUsingLine(intersection,(math.cos(angle+angle_step),math.sin(angle+angle_step)),cell1["roi"],cell2["roi"])
-			continue
-			
-		if score_right>score_left:
-			score_left = score
-			angle = angle+angle_step
-		else:
-			score_right = score
-			angle = angle-angle_step
-			
-		_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
-	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Dichotomy ended after "+str(iterations)+" iterations and a score of "+str(score))
-	if LOG or LOG_ERROR:
-		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Dichotomy ended after "+str(iterations)+" iterations and a score of "+str(score))
+		old_score = score
+		_,_,score = divideUsingLine(intersection,(math.cos(2*3.141*random()),math.sin(2*3.141*random())),cell1["roi"],cell2["roi"])
+		
+		if score < old_score:
+			score = old_score
+		
+	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
+	if LOG:
+		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
 	if score < MINIMUM_SCORE:
 		print("  |>  Score too low -> Cell division aborded")
 		if LOG or LOG_ERROR:
@@ -565,9 +549,97 @@ def forceDivide(cells, new_cells,id,parentid,ancestor):
 		"roi": ROI2
 	}
 	
-	new_cells[id] = None
+	del new_cells[id]
 	
 	return new_cells
+	
+def forceMerge(cells):
+	
+	toModify = []
+	for id in cells.keys():
+		cell = cells[id]
+		
+		ancestor = 1
+		if cell["parent"] is None:
+			continue
+		
+		parent = cells[cell["parent"]]
+		
+		if len(parent["children"]) < 2:
+			continue
+		
+		flag = False
+		for childid in parent["children"]:
+			if childid == id:
+				continue
+			child = cells[childid]
+			if len(child["children"]) > 0:
+				flag = True
+				break
+		if flag:
+			continue
+		
+		flag = False
+		while ancestor < MAX_ANCESTOR:
+			if parent["parent"] is None:
+				flag = True
+				break
+			parent = cells[parent["parent"]]
+			ancestor += 1
+			if len(parent["children"]) >= 2:
+				flag = True
+				break
+		if flag:
+			continue
+		
+		descendant = 1
+		if len(cell["children"]) != 1:
+			continue
+		child = cells[cell["children"][0]]
+		flag = False
+		while descendant < 4:
+			if len(child["children"]) != 1:
+				flag = True
+				break
+			child = cells[child["children"][0]]
+			descendant += 1
+		if flag:
+			continue
+		
+		toModify.append((id,ancestor,descendant))
+		
+	print(str(len(toModify)) + " merges found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
+	if LOG:
+		IJ.log(str(len(toModify)) + " merges found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
+	
+	deleted_cells = []
+	for id,_,_ in toModify:
+		if id in deleted_cells:
+			continue
+		cell = cells[id]
+		roi = []
+		ids_to_remove = []
+		for childid in cells[cell["parent"]]["children"]:
+			child = cells[childid]
+			ids_to_remove.append(childid)
+			roi.extend(child["roi"])
+		
+		cells[id+"merged"] = {
+			"name": id+"merged",
+			"frame": cell["frame"],
+			"center": (0,0),
+			"parent": cell["parent"],
+			"children": cell["children"],
+			"roi": roi
+		}
+		cells[cell["parent"]]["children"] = [id+"merged"]
+		cells[cell["children"][0]]["parent"] = id+"merged"
+		
+		for idr in ids_to_remove:
+			del cells[idr]
+			deleted_cells.append(idr)
+
+	return cells
 
 def correctTree(event):
 	imp = WM.getCurrentImage()
@@ -631,10 +703,13 @@ def correctTree(event):
 	    	cells[parent]["children"].append(child)
 	    	cells[child]["parent"] = parent
 	    	
+	#Merge cells that need to be merged
+	cells = forceMerge(cells)
+	    	
+	#Where are the problems...
 	new_cells = copy.deepcopy(cells)
 	
 	toModify = []
-	
 	modifications = 0
 	for cellid in new_cells.keys():
 		if not(cellid in new_cells.keys()):
@@ -705,7 +780,7 @@ def correctTree(event):
 		modifications += 1
 
 	print(str(modifications) + " divisions found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
-	if LOG or LOG_ERROR:
+	if LOG:
 		IJ.log(str(modifications) + " divisions found: " + str([str(tm[0])+"("+str(cells[tm[0]]["frame"]+1)+")" for tm in toModify]))
 
 
@@ -724,7 +799,7 @@ def correctTree(event):
 		rm.addRoi(roi)
 		
 	print("Repair done")
-	if LOG or LOG_ERROR:
+	if LOG:
 		IJ.log("Repair done")
 
 	return	
