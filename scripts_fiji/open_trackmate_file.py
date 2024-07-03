@@ -3,7 +3,7 @@ Fiji script: Open trackmate xml file
 """
 
 #Path to the xml file, if the img linked to the file is None then the img that will be opened is SAME_ROOT/SAME_NAME.tif
-FILE_PATH = '/media/irina/5C00325A00323B7A/Zack/data/export/wt5c13/wt5c13_continuity1706.xml'
+FILE_PATH = '/media/irina/5C00325A00323B7A/Zack/data/export/wt3c10/wt3c10_continuity1706.xml'
 
 #If the spots just appears on the first frame, this means that the dimensions are switched (Z <-> T) so change the boolean.
 CHANGE_DIMENSIONS = False

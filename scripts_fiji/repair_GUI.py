@@ -12,22 +12,51 @@ LOG_ERROR = True
 #Print errors & infos in ImageJ Logger
 LOG = True
 
+#-1 or -2, sometime the file path is like: .../f1/f2/colony/{data_here} but when we split using "/" we'll have ["f1","f2","colony",""] so a last element with nothing. 
+#That is why we can take not the last but just the element before the last, i.e [-2]
+WHERE_TO_LOOK = -2
+
 #Modify the json file when remove slice
 MODIFY_JSON = True
 
 # x <= 0 -> No auto save; Integer = Interval between each save
-AUTO_SAVE = 5
+AUTO_SAVE = 0
 #If None you'll need to have an img opened & the saves will have the img name (+ the suffix/index)
 SAVE_NAME = None
 #If None you'll need to have an img opened & the saves will be in the same folder of the img
 SAVES_DIR = None
 
+#SETTINGS FOR THE REPAIR TOOL
 #Max where the algo will ascend to verify divisions
 MAX_ANCESTOR = 5
+
+ENABLE_DESCENDANT_VERIF = False
 #Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
-MAX_DESCENDANT = 1
+MAX_DESCENDANT = 3
+
 #Minimum division direction score, if the score is too low then the cell will have a wrong cut so better to manually correct than have a correction that is false.
 MINIMUM_SCORE = 0.8
+
+#Is use when we'll find the interface between the two cells (in pixels)
+#Also called epsilon 
+GAP_MAX_RANGE = 10
+
+#How the valid points in the division are weighted to the score.
+#A higher weight means that the score will increase a lot with the number of good points in the new roi created
+WEIGHT_GOOD_SCORE = 1.
+#So for example we can make the weight of wrong points higher in order to find a better fit
+WEIGHT_WRONG_SCORE = 2.5
+
+#To find a direction we'll create a random angle and then, like a markov chain, search the maximum.
+#MAX_TENTATIVES means the nbr of chains (if we find a good fit, we'll dont create new chains)
+#MAX_CHAIN_STEPS is how much steps we'll make in the chain
+MAX_TENTATIVES = 30
+MAX_CHAIN_STEPS = 75
+
+#The division part of the reparation will only try to correct cells in the interval
+REPARATION_INTERVAL = None
+#Save before and after the reparation with a specific suffix to the save file
+SAVE_BEFOREANDAFTER_REPA = False
 #--------------------------------------------------------
 
 from javax.swing import JFrame, JButton, JOptionPane, JPanel
@@ -216,6 +245,10 @@ def divide(event):
   	y = Y[i]+cell.getBoundingRect().y
   	P = (x-line.x1,y-line.y1)
   	angle = math.atan2(P[1], P[0]) - angle_dir
+  	
+  	if angle > 3.1416:
+  		angle -= 2*3.1416
+  	
   	if angle < 0:
   		ROI1_X.append(x)
   		ROI1_Y.append(y)
@@ -355,7 +388,7 @@ def removeFrame(event):
 	if MODIFY_JSON:
 		fi = imp.getOriginalFileInfo()
 		directory = fi.directory
-		colony_name = directory.split("/")[-1]
+		colony_name = directory.split("/")[WHERE_TO_LOOK]
 		
 		file_name = colony_name+".json"
 		f = open(os.path.join(directory,file_name))
@@ -436,22 +469,25 @@ def divideUsingLine(inter,dir,pts1,pts2):
 		x = p[0]
 		y = p[1]
 		P = (x-inter[0],y-inter[1])
-		angle = math.atan2(P[1], P[0]) - angle_dir
+		angle = math.atan2(P[1], P[0])
+		angle -= angle_dir
+		
+		if angle > 3.141:
+			angle -= 2*3.141
+		
 		if angle < 0:
 			new_pts_1.append((x,y))
 		else:
 			new_pts_2.append((x,y))
 			
-	score1 = 0
-	score2 = 0
+	score = 0
 	for p in new_pts_1:
 		if p in pts1:
-			score1 += 1.
+			score += WEIGHT_GOOD_SCORE/ len(pts1)
 		if p in pts2:
-			score2 -= 1
-	score1 = score1 / len(pts1)
+			score -= WEIGHT_WRONG_SCORE/ len(pts2)
 	
-	return (new_pts_1,new_pts_2,score1)
+	return (new_pts_1,new_pts_2,score)
 	
 def computeIntersection(cell1,cell2,frame=0):
 	"""
@@ -464,7 +500,7 @@ def computeIntersection(cell1,cell2,frame=0):
 		return
 	
 	#max distance between two points (in pixels):
-	epsilon = 10
+	epsilon = GAP_MAX_RANGE
 	
 	points = []
 	for p1 in cell1["roi"]:
@@ -478,7 +514,7 @@ def computeIntersection(cell1,cell2,frame=0):
 				points.append(p2)
 				
 	if len(points) < 1:
-		print("Cant compute intersection between two cells because no neighbors points found, try to increase the epsilon")
+		print("Cant compute intersection between two cells because no neighbors points found, try to increase the epsilon/gap max range")
 		return
 		
 	x_sum = 0
@@ -488,23 +524,51 @@ def computeIntersection(cell1,cell2,frame=0):
 		y_sum += p[1]
 	intersection = (x_sum/len(points),y_sum/len(points))
 	
-	#RANDOM BCS WHY NOT (dicho doesn't work)
+
 	precision = 0.1
+	max_steps = MAX_CHAIN_STEPS
 	iterations = 0
 	
 	angle = 0
 	_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
-	while iterations < 500 and score<1.-precision:
+	
+	angle_logs = []
+	while iterations < MAX_TENTATIVES and score<1.-precision:
+	
+		angle = 2*3.141*random()
+		step = 0
+		angle_step = 3.141*0.1
+		dir_switch = True
+		last_score = None
+		while step < max_steps and score < 1.-precision:	
+			step += 1
+			_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
+				
+			if last_score is None:
+				last_score = score
+				continue
+				
+			if score < last_score:
+				dir_switch = not(dir_switch)
+				
+			if dir_switch:
+				angle += angle_step
+			else:
+				angle -= angle_step
+				
+			last_score = score
+			
+		angle_logs.append([angle,score])
 		iterations += 1
-		old_score = score
-		_,_,score = divideUsingLine(intersection,(math.cos(2*3.141*random()),math.sin(2*3.141*random())),cell1["roi"],cell2["roi"])
 		
-		if score < old_score:
-			score = old_score
+	if score<1.-precision:
+		max_arg = argsort([tpl[1] for tpl in angle_logs])[-1]
+		angle = [tpl[0] for tpl in angle_logs][max_arg]
+		score = [tpl[1] for tpl in angle_logs][max_arg]
 		
-	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
+	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+" | "+str(intersection)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
 	if LOG:
-		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
+		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+" | "+str(intersection)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
 	if score < MINIMUM_SCORE:
 		print("  |>  Score too low -> Cell division aborded")
 		if LOG or LOG_ERROR:
@@ -531,23 +595,25 @@ def forceDivide(cells, new_cells,id,parentid,ancestor):
   	
 	cell = cells[id]
 	ROI1, ROI2, _ = divideUsingLine(intersection, direction, cell["roi"], [])
-		
-	new_cells[id+"c1"] = {
-		"name": id+"c1",
-		"frame": cell["frame"],
-		"center": (0,0),
-		"parent": None,
-		"children": [],
-		"roi": ROI1
-	}
-	new_cells[id+"c2"] = {
-		"name": id+"c2",
-		"frame": cell["frame"],
-		"center": (0,0),
-		"parent": None,
-		"children": [],
-		"roi": ROI2
-	}
+	
+	if not(ROI1 is None) and len(ROI1) > 3:
+		new_cells[id+"c1"] = {
+			"name": id+"c1",
+			"frame": cell["frame"],
+			"center": (0,0),
+			"parent": None,
+			"children": [],
+			"roi": ROI1
+		}
+	if not(ROI2 is None) and len(ROI2) > 3:
+		new_cells[id+"c2"] = {
+			"name": id+"c2",
+			"frame": cell["frame"],
+			"center": (0,0),
+			"parent": None,
+			"children": [],
+			"roi": ROI2
+		}
 	
 	del new_cells[id]
 	
@@ -641,6 +707,26 @@ def forceMerge(cells):
 
 	return cells
 
+def removeSporadicCells(cells):
+	
+	toRemove = []
+	
+	for id in cells.keys():
+		cell = cells[id]
+		
+		if cell["parent"] is None and len(cell["children"]) <= 0:
+			toRemove.append(id)
+			continue
+			
+	print(str(len(toRemove)) + " sporadic cells found: " + str([str(tm)+"("+str(cells[tm]["frame"]+1)+")" for tm in toRemove]))
+	if LOG:
+		IJ.log(str(len(toRemove)) + " sporadic cells found: " + str([str(tm)+"("+str(cells[tm]["frame"]+1)+")" for tm in toRemove]))
+	
+	for id in toRemove:
+		del cells[id]
+	
+	return cells
+
 def correctTree(event):
 	imp = WM.getCurrentImage()
 	if not(imp):
@@ -651,7 +737,7 @@ def correctTree(event):
 		
 	fi = imp.getOriginalFileInfo()
 	directory = fi.directory
-	colony_name = directory.split("/")[-2]
+	colony_name = directory.split("/")[WHERE_TO_LOOK]
 	model_name = imp.getTitle().split(".")[0].split("_")[-1]
 	path = os.path.join(directory,colony_name+"_"+model_name+".xml")
 	if not(os.path.exists(path)):
@@ -669,6 +755,9 @@ def correctTree(event):
 	model = reader.getModel()
 	sm = SelectionModel(model)
 	
+	if SAVE_BEFOREANDAFTER_REPA:
+		save(None,suffix="before_repa")
+		
 	#convert trackmate spots & tracks to custom objects : "cells"
 	cells = {}
 	spots = model.getSpots()
@@ -680,8 +769,8 @@ def correctTree(event):
 	
 		frame = int(spot.getFeature("FRAME"))
 		roi = spot.getRoi()
-		X = [int(x+spot.getDoublePosition(0)) for x in roi.x]
-		Y = [int(y+spot.getDoublePosition(1)) for y in roi.y]
+		X = [int(x+spot.getDoublePosition(0)) for x in roi.x if not(math.isnan(x))]
+		Y = [int(y+spot.getDoublePosition(1)) for y in roi.y if not(math.isnan(y))]
 		roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
 	
 		cells[spot.getName()] = {
@@ -703,6 +792,9 @@ def correctTree(event):
 	    	cells[parent]["children"].append(child)
 	    	cells[child]["parent"] = parent
 	    	
+	#Remove sporadics cells
+	cells = removeSporadicCells(cells)
+	 
 	#Merge cells that need to be merged
 	cells = forceMerge(cells)
 	    	
@@ -715,6 +807,9 @@ def correctTree(event):
 		if not(cellid in new_cells.keys()):
 			continue
 		cell = new_cells[cellid]
+		
+		if not(REPARATION_INTERVAL is None) and not(cell["frame"]+1 >= REPARATION_INTERVAL[0] and cell["frame"]+1 <=REPARATION_INTERVAL[1]):
+			continue
 		
 		if cell["parent"] is None:
 			continue
@@ -764,17 +859,18 @@ def correctTree(event):
 			continue
 
 
-		child_used = cell
-		descendant = 0
-		while(descendant < MAX_DESCENDANT):
-			if len(child_used["children"]) >= 2:
-				break
-			descendant += 1
-			if len(child_used["children"]) == 0:
-				break
-			child_used = cells[child_used["children"][0]]
-		if len(child_used["children"]) < 2 or len(child_used["children"]) == 0:
-			continue
+		if ENABLE_DESCENDANT_VERIF:
+			child_used = cell
+			descendant = 0
+			while(descendant < MAX_DESCENDANT):
+				if len(child_used["children"]) >= 2:
+					break
+				descendant += 1
+				if len(child_used["children"]) == 0:
+					break
+				child_used = cells[child_used["children"][0]]
+			if len(child_used["children"]) < 2 or len(child_used["children"]) == 0:
+				continue
 
 		toModify.append((cellid,parent_used["name"],ancestor))
 		modifications += 1
@@ -801,6 +897,9 @@ def correctTree(event):
 	print("Repair done")
 	if LOG:
 		IJ.log("Repair done")
+	
+	if SAVE_BEFOREANDAFTER_REPA:
+		save(None,suffix="after_repa")
 
 	return	
 			
