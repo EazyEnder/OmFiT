@@ -2,7 +2,7 @@
 Import data
 """
 
-COLONY_NAME = "wt3c10"
+COLONY_NAME = "wt5c2"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Define a circle region, if the bact is in à the end then we'll keep it, else she'll be removed.
@@ -12,7 +12,7 @@ KEEP_DISTANCE = 0
 #Each "independant" tree (~different ancestor) has his own row in the figure
 DIVIDE_PER_TREE = True
 #Effect only if divide per tree is False; if this is false, each branch is a Tree
-COMBINE_INTO_ONE_TREE = True
+COMBINE_INTO_ONE_TREE = False
 
 
 PLOT_ELLIPSE = True
@@ -30,7 +30,7 @@ def plotEllipseMajor(CELLS,cells,ax):
     ax.scatter([CELLS[c]["time"] / (3600*24) for c in cells], [CELLS[c]["ellipse"][0] for c in cells], s=3.)
 
 class Measure():
-    def __init__(self,COLONY_NAME,DATA_DIR):
+    def __init__(self,COLONY_NAME=COLONY_NAME,DATA_DIR=DATA_DIR):
         self.COLONY_NAME = COLONY_NAME
         self.DATA_DIR = DATA_DIR
 
@@ -129,9 +129,10 @@ class Measure():
             parent = self.CELLS[parent]["parent"]
         return cells_branch
     
-m = Measure(COLONY_NAME,DATA_DIR)
-m.plot()
-plt.show()
+if __name__ == "__main__":
+    m = Measure(COLONY_NAME,DATA_DIR)
+    m.plot()
+    plt.show()
     
 
 
