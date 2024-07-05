@@ -4,10 +4,10 @@ Fiji script: Concatenate all the stacks/imgs together
 Settings:
 """
 
-#Field
-POSITION = "wt5"
+#Field(s)
+POSITIONS = ["wt5","wt4","wt3"]
 #Export path
-EXPORT_PATH = "/media/irina/5C00325A00323B7A/Zack/test/"+POSITION+"/"
+EXPORT_PATHS = ["/media/irina/5C00325A00323B7A/Zack/nov13/"+POS+"/" for POS in POSITIONS]
 
 #list of path in order. The program will take field files from all the src paths. 
 SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"]
@@ -18,7 +18,7 @@ MM_NAME= ["000" ,"001" ,"002"]
 #Minimum index for all src path
 IDX_FILE_BEGIN = 1
 #Maximum index for all src path. If there is no folder corresponding to the index -> just put an empty list.
-IDX_FILE_END = 12
+IDX_FILE_END = 13
 
 #------------------------------------------------------
 
@@ -27,6 +27,7 @@ from ij import IJ, ImagePlus, ImageStack
 from ij.plugin import Concatenator
 from ij.io import FileSaver
 import json
+import gc
 
 from datetime import datetime
 
@@ -35,7 +36,7 @@ from datetime import datetime
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
 
-def main():
+def main(POSITION,EXPORT_PATH):
 
 	RESULT = {}
 	for i in range(len(COLORS)):
@@ -69,7 +70,7 @@ def main():
 				times = []
 				delta_times = []
 				for f in argsort(unsorted_times):	
-					imgs.append(IJ.openImage(os.path.join(SRC_PATH[src]+str(j)+"/"+POSITION+"/",files[f])))
+					imgs.append(IJ.openVirtual(os.path.join(SRC_PATH[src]+str(j)+"/"+POSITION+"/",files[f])))
 					times.append(unsorted_times[f])
 					if T_BEGIN is None:
 						T_BEGIN = times[f]
@@ -100,10 +101,15 @@ def main():
 		print("Saving "+COLORS[i])
 		fs = FileSaver(rslt_imp)
 		fs.saveAsTiff(EXPORT_PATH+COLORS[i]+".tif")
-		rslt_imp = None
+		
+		del rslt_imp
+		del fs
+		gc.collect()
 			
 	with open(EXPORT_PATH+"result.json", "w") as outfile:
 		json.dump(RESULT, outfile)
 	print("End")
-		
-main()
+
+for i in range(len(POSITIONS)):
+	print("Work on: "+ POSITIONS[i])
+	main(POSITIONS[i],EXPORT_PATHS[i])
