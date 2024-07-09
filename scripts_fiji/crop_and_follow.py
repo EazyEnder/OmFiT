@@ -3,15 +3,15 @@ Fiji script: Crop & Follow through time a part of a stack
 """
 
 #Field
-POSITION = "wt3"
+POSITION = "wt5"
 #Path to the files
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/nov13/"+POSITION+"/"
 
 #Divide the movie into time intervals, the end of a time interval is before a huge move
-TIMES = [(0,97),(98,-1)]
+TIMES = [(0,-1)]
 #REGIONS is a list of:
 #[(POSITION X & Y),(SIZE WIDTH & HEIGHT)]
-REGIONS = [[(1469,1163),(579,579)],[(1052,473),(579,579)]] #wt2 transi
+REGIONS = [[(198,627),(924,966)]]
 
 #Channels name
 CHANNELS = ["phase", "y", "r"]

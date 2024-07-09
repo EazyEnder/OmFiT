@@ -2,7 +2,7 @@
 Import data
 """
 
-COLONY_NAME = "wt5c2"
+COLONY_NAME = "wt2Tc1"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Define a circle region, if the bact is in à the end then we'll keep it, else she'll be removed.

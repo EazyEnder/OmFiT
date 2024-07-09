@@ -12,7 +12,7 @@ Think to rename all channels files like wt3c10 not wt3_10
 Not switch Image window during the roi process
 """
 
-COLONY_NAME = "wt3c10"
+COLONY_NAME = "wt2Tc1"
 #Need to have a json file with the name of colony in the folder
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
@@ -23,7 +23,7 @@ EXPORT_DIR = DATA_DIR
 
 
 #x0,y0,x1,y1 - DON'T FORGET TO CHANGE IT
-BACKGROUND_RECT = [128,162,163,238]
+BACKGROUND_RECT = [0,494,558,494+49]
 
 SAVE_BACKGROUND_METADATA = True
 

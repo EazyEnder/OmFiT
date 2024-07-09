@@ -8,7 +8,7 @@ np.random.seed(41)
 
 from analyse import Measure
 
-measure = Measure("wt5c2")
+measure = Measure("wt2Tc1")
 
 traj = measure.trees[0][0]
 FLUO = measure.FLUO
@@ -49,9 +49,13 @@ def applyBaseline(t,y,T,R):
 
 t = [CELLS[t]["time"] / (3600) for t in traj]
 t = np.array(t)
+sorted_indexes = np.argsort(t)
+t = t[sorted_indexes]
+R = [R[0][sorted_indexes]]
 dt = t[1]-t[0]
 
-R[0] = applyBaseline([2.91,14.83,29.89,40.11,54.63,64.50],[286,286,465,450,507,499],t,R)
+#R[0] = applyBaseline([2.91,14.83,29.89,40.11,54.63,64.50],[286,286,465,450,507,499],t,R)
+R[0] = applyBaseline([6.7,16,33.9,44.5,54.8,64.6,79.2,99.8,103.9,112.9,125.0,132.1],[446,399,417,409,417,413,421,373,389,333,361,343],t,R)
 
 kws = dict(kind='kalman', alpha=.1)
 gradient = np.array(pk.differentiation.Derivative(**kws)(R[0], t))[:,0]
@@ -73,9 +77,9 @@ ax1.set_ylabel(r'$x_2$')
 ax1.set_title("Mesure")
 
 from pydmd import DMD
-x1 = R[40:,0]
-x2 = R[40:,1]
-t = t[40:]
+x1 = R[:,0]
+x2 = R[:,1]
+t = t[:]
 x1 = np.array(x1)
 x2 = np.array(x2)
         

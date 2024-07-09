@@ -12,10 +12,6 @@ LOG_ERROR = True
 #Print errors & infos in ImageJ Logger
 LOG = True
 
-#-1 or -2, sometime the file path is like: .../f1/f2/colony/{data_here} but when we split using "/" we'll have ["f1","f2","colony",""] so a last element with nothing. 
-#That is why we can take not the last but just the element before the last, i.e [-2]
-WHERE_TO_LOOK = -2
-
 #Modify the json file when remove slice
 MODIFY_JSON = True
 
@@ -30,7 +26,7 @@ SAVES_DIR = None
 #Max where the algo will ascend to verify divisions
 MAX_ANCESTOR = 5
 
-ENABLE_DESCENDANT_VERIF = False
+ENABLE_DESCENDANT_VERIF = True
 #Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
 MAX_DESCENDANT = 3
 
@@ -72,7 +68,7 @@ from fiji.plugin.trackmate.io import TmXmlReader
 from fiji.plugin.trackmate import Logger
 from fiji.plugin.trackmate import Settings
 from fiji.plugin.trackmate import SelectionModel
-from fiji.plugin.trackmate import Model
+from fiji.plugin.trackmate import Model, Spot
 from fiji.plugin.trackmate.gui.wizard.descriptors import ChooseTrackerDescriptor
 from fiji.plugin.trackmate.gui.displaysettings import DisplaySettingsIO
 from fiji.plugin.trackmate.gui import Icons
@@ -80,11 +76,31 @@ from fiji.plugin.trackmate.gui import GuiUtils
 from fiji.plugin.trackmate import TrackMate
 from fiji.plugin.trackmate import SpotRoi
 from fiji.plugin.trackmate.gui.wizard import TrackMateWizardSequence
+from fiji.plugin.trackmate.tracking.overlap import OverlapTrackerFactory, OverlapTracker
 import os, sys
 import json
 import copy
 from java.io import File
 from random import random
+
+def handleIMGError():
+	imp = WM.getCurrentImage()
+	if not(imp):
+		print "Open an image first."
+		if LOG or LOG_ERROR:
+			IJ.log("Open an image first.")
+		return False
+	return True
+	
+def handleROIError():
+	rm = RoiManager.getInstance()
+	if not(rm):
+		print "Open ROI Manager first."
+		if LOG or LOG_ERROR:
+			IJ.log("Open ROI Manager first.")
+		return False
+	return True
+
 
 OPERATION_COUNTER = 0
 LAST_SAVE_OP = 0
@@ -147,18 +163,12 @@ def setSaveFolder(event):
 
 def save(event,suffix="manual"):
 	imp = WM.getCurrentImage()
-	if not(imp) and (SAVES_DIR is None or SAVE_NAME is None):
-		print "Open an image first or modify saves folder."
-		if LOG or LOG_ERROR:
-			IJ.log("Open an image first or modify saves folder.")
+	if not(handleIMGError()):
 		return
 
 	rm = RoiManager.getInstance()
-	if not(rm):
-	  	print "Open ROI Manager first."
-	  	if LOG or LOG_ERROR:
-	  		IJ.log("Open ROI Manager first.")
-  		return
+	if not(handleROIError()):
+		return
   	
   	txt = None
   	filename = SAVE_NAME
@@ -193,105 +203,113 @@ def save(event,suffix="manual"):
 	
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
+    
+def cleanROIs(event):
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return
+	
+	delete = 0	
+	for i in range(rm.getCount()):
+		roi = rm.getRoi(i-delete)
+		if roi.getPosition()+1 > imp.getImageStack().getSize()+1:
+			rm.select(i-delete)
+			rm.runCommand(imp,"Delete")
+			delete += 1
+	print "Clean "+str(delete)+" ROIs"
+	if LOG:
+		IJ.log("Clean "+str(delete)+" ROIs")
   
 def divide(event):  
 
-  imp = WM.getCurrentImage()
-  if not(imp):
-  	print "Open an image first."
-  	if LOG or LOG_ERROR:
-  		IJ.log("Open an image first.")
-  	return
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+	
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return
+  
+	selection = rm.getSelectedRoisAsArray()
+	if not(len(selection) == 1) or len(selection) > 100:
+	  	print "You need to select only 1 ROIs"
+	  	if LOG or LOG_ERROR:
+	  		IJ.log("You need to select only 1 ROIs")
+	  	return
   	
-  rm = RoiManager.getInstance()
-  if not(rm):
-  	print "Open ROI Manager first."
-  	if LOG or LOG_ERROR:
-  		IJ.log("Open ROI Manager first.")
-  	return
+	line = imp.getRoi()
+	if not(line):
+		print "You need to draw a line first"
+		if LOG or LOG_ERROR:
+			IJ.log("You need to draw a line first")
+		return
+	if not(line.isLine):
+		print "Selection isn't a line"
+		if LOG or LOG_ERROR:
+			IJ.log("Selection isn't a line")
+		return
   
-  selection = rm.getSelectedRoisAsArray()
-  if not(len(selection) == 1):
-  	print "You need to select only 1 ROIs"
-  	if LOG or LOG_ERROR:
-  		IJ.log("You need to select only 1 ROIs")
-  	return
+	D = (line.x2 - line.x1, line.y2 - line.y1)
+	
+	cell = selection[0]
+	X = cell.getXCoordinates()
+	Y = cell.getYCoordinates()
+	
+	ROI1_X = []
+	ROI1_Y = []
+	ROI2_X = []
+	ROI2_Y = []
+	angle_dir = math.atan2(D[1],D[0])
+	for i in range(len(X)):
+		x = X[i]+cell.getBoundingRect().x
+		y = Y[i]+cell.getBoundingRect().y
+		P = (x-line.x1,y-line.y1)
+		angle = math.atan2(P[1], P[0]) - angle_dir
+		
+		if angle > 3.1416:
+			angle -= 2*3.1416
+		
+		if angle < 0:
+			ROI1_X.append(x)
+			ROI1_Y.append(y)
+		else:
+			ROI2_X.append(x)
+			ROI2_Y.append(y)
   	
-  line = imp.getRoi()
-  if not(line):
-  	print "You need to draw a line first"
-  	if LOG or LOG_ERROR:
-  		IJ.log("You need to draw a line first")
-  	return
-  if not(line.isLine):
-  	print "Selection isn't a line"
-  	if LOG or LOG_ERROR:
-  		IJ.log("Selection isn't a line")
-  	return
+	ROI1 = PolygonRoi(ROI1_X,ROI1_Y,len(ROI1_X),Roi.POLYGON)
+	ROI2 = PolygonRoi(ROI2_X,ROI2_Y,len(ROI2_X),Roi.POLYGON)
+	
+	slice_number = cell.getPosition()
+	ROI1.setPosition(slice_number)
+	ROI2.setPosition(slice_number)
+	
+	rm.runCommand('Delete')
+	rm.addRoi(ROI1)
+	rm.addRoi(ROI2)
+	if LOG:
+		IJ.log("ROI divided")
+	print "ROI divided"
   
-  D = (line.x2 - line.x1, line.y2 - line.y1)
-  
-  cell = selection[0]
-  X = cell.getXCoordinates()
-  Y = cell.getYCoordinates()
-  
-  ROI1_X = []
-  ROI1_Y = []
-  ROI2_X = []
-  ROI2_Y = []
-  angle_dir = math.atan2(D[1],D[0])
-  for i in range(len(X)):
-  	x = X[i]+cell.getBoundingRect().x
-  	y = Y[i]+cell.getBoundingRect().y
-  	P = (x-line.x1,y-line.y1)
-  	angle = math.atan2(P[1], P[0]) - angle_dir
-  	
-  	if angle > 3.1416:
-  		angle -= 2*3.1416
-  	
-  	if angle < 0:
-  		ROI1_X.append(x)
-  		ROI1_Y.append(y)
-  	else:
-  		ROI2_X.append(x)
-  		ROI2_Y.append(y)
-  	
-  ROI1 = PolygonRoi(ROI1_X,ROI1_Y,len(ROI1_X),Roi.POLYGON)
-  ROI2 = PolygonRoi(ROI2_X,ROI2_Y,len(ROI2_X),Roi.POLYGON)
-  
-  slice_number = cell.getPosition()
-  ROI1.setPosition(slice_number)
-  ROI2.setPosition(slice_number)
-  
-  rm.runCommand('Delete')
-  rm.addRoi(ROI1)
-  rm.addRoi(ROI2)
-  if LOG:
-  	IJ.log("ROI divided")
-  print "ROI divided"
-  
-  autosave()
+	autosave()
   
 def merge(event):
 	imp = WM.getCurrentImage()
-	if not(imp):
-		print "Open an image first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open an image first.")
+	if not(handleIMGError()):
 		return
-		
+
 	rm = RoiManager.getInstance()
-	if not(rm):
-		print "Open ROI Manager first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open ROI Manager first.")
+	if not(handleROIError()):
 		return
 	
 	selection = rm.getSelectedRoisAsArray()
-	if len(selection) < 2:
-		print "You need to select only 2 ROIs at least"
+	if len(selection) < 2 or len(selection) > 100:
+		print "You need to select 2 ROIs at least"
 		if LOG:
-			IJ.log("You need to select only 2 ROIs")
+			IJ.log("You need to select 2 ROIs at least")
 		return
 	
 	rm.runCommand('Combine')
@@ -302,19 +320,13 @@ def merge(event):
 	print "ROIs merged"
 	autosave()
 	
-def openTrackMate(event):
+def openTrackMate(event, preset_ROIs=None):
 	imp = WM.getCurrentImage()
-	if not(imp):
-		print "Open an image first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open an image first.")
+	if not(handleIMGError()):
 		return
-		
+
 	rm = RoiManager.getInstance()
-	if not(rm):
-		print "Open ROI Manager first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open ROI Manager first.")
+	if not(handleROIError()):
 		return
 		
 	IJ.run("Show Overlay", "")
@@ -327,7 +339,10 @@ def openTrackMate(event):
 	model.setLogger(Logger.IJ_LOGGER)
 	model.beginUpdate()
 		
-	for roi in rm.getRoisAsArray():
+	ROIs = rm.getRoisAsArray()
+	if not(preset_ROIs is None):
+		ROIs = preset_ROIs
+	for roi in ROIs:
 		roi_slice = roi.getPosition()
 		if type(roi) is ShapeRoi:
 			roi = PolygonRoi(roi.getPolygon(),Roi.POLYGON)
@@ -357,19 +372,140 @@ def openTrackMate(event):
 	GuiUtils.positionWindow( frame, imp.getWindow() )
 	frame.setVisible(True)
 	
-def removeFrame(event):
+def _getFlattenChildren(cell,cells):
+	children = []
+	for cellid in cell["children"]:
+		children.append(cells[cellid])
+		children.extend(_getFlattenChildren(children[-1],cells)) 
+	return children	
+
+def openTrackMateUsingROIs(event):
 	imp = WM.getCurrentImage()
-	if not(imp):
-		print "Open an image first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open an image first.")
+	if not(handleIMGError()):
+		return
+
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
 		return
 		
+	selection = rm.getSelectedRoisAsArray()
+	if len(selection) < 1 or len(selection) > 100:
+		print "You need to select 1 ROI at least"
+		if LOG:
+			IJ.log("You need to select 1 ROI at least")
+		return
+	
+	model = Model()
+	model.setLogger(Logger.IJ_LOGGER)
+	model.beginUpdate()
+		
+	for roi in rm.getRoisAsArray():
+		roi_slice = roi.getPosition()
+		if type(roi) is ShapeRoi:
+			roi = PolygonRoi(roi.getPolygon(),Roi.POLYGON)
+			roi.setPosition(roi_slice)
+		spot = SpotRoi.createSpot([int(x+roi.getBoundingRect().x) for x in roi.getXCoordinates()],[int(y+roi.getBoundingRect().y) for y in roi.getYCoordinates()],10.)
+		if math.isinf(spot.getDoublePosition(0)) or math.isnan(spot.getDoublePosition(0)) or math.isnan(spot.getDoublePosition(1)) or math.isinf(spot.getDoublePosition(1)):
+			sx = 0
+			i = 0
+			for x in [int(x+roi.getBoundingRect().x) for x in roi.getXCoordinates()]:
+				sx += x
+				i += 1
+			xc = sx/i
+			sy = 0
+			i = 0
+			for y in [int(y+roi.getBoundingRect().y) for y in roi.getYCoordinates()]:
+				sy += y
+				i += 1
+			yc = sy/i
+			spot = Spot(xc, yc, 0., spot.getFeature(Spot.RADIUS), 10)
+			spot.setRoi(SpotRoi([int(x+roi.getBoundingRect().x) for x in roi.getXCoordinates()],[int(y+roi.getBoundingRect().y) for y in roi.getYCoordinates()]))
+		model.addSpotTo(spot, int(roi_slice-1))
+	model.endUpdate()
+	
+	settings = Settings(imp)
+	
+	settings.trackerFactory = OverlapTrackerFactory()
+	settings.trackerSettings = settings.trackerFactory.getDefaultSettings()
+	settings.trackerSettings['MIN_IOU'] = 0.05
+	
+	trackmate = TrackMate(model, settings)
+	 
+	ok = trackmate.execTracking()
+	if not ok:
+		print(str(trackmate.getErrorMessage()))
+	
+	cells = {}
+	spots = model.getSpots()
+	for i,spot in enumerate(spots.iterable(True)):
+		frame = int(spot.getFeature("FRAME"))+1
+		roi = spot.getRoi()
+		X = [int(x+spot.getDoublePosition(0)) for x in roi.x if not(math.isnan(x))]
+		Y = [int(y+spot.getDoublePosition(1)) for y in roi.y if not(math.isnan(y))]
+		roi = PolygonRoi(X,Y,len(X),Roi.POLYGON)
+		roi.setPosition(frame)
+		cells[spot.getName()] = {
+		"name": spot.getName(),
+		"frame": frame,
+		"center": (round(spot.getDoublePosition(0),2),round(spot.getDoublePosition(1),2)),
+		"parent": None,
+		"children": [],
+		"roi": roi
+		}
+
+	
+	trackIDs = model.getTrackModel().trackIDs(True)
+	for id in trackIDs:
+		edges = model.getTrackModel().trackEdges(id)
+		for edge in edges:
+			parent = str(edge).split(" : ")[0].split("(")[-1]
+			child = str(edge).split(" : ")[1].split(")")[0]
+			cells[parent]["children"].append(child)
+			cells[child]["parent"] = parent
+
+	cells_selected = []
+	for roi in selection:
+		for cellid in cells.keys():
+			cell = cells[cellid]
+			if roi.getPosition() != cell["frame"]:
+				continue
+				
+			if not(roi.contains(int(cell["center"][0]),int(cell["center"][1]))):
+				continue
+				
+			cells_selected.append(cell)
+			break
+			
+	ROIs = []
+	IDs = []
+	for cell in cells_selected:
+	
+		parent = cell
+		while not(parent["parent"] is None):
+			parent = cells[parent["parent"]]
+			if parent["name"] in IDs:
+				break
+			IDs.append(parent["name"])
+			ROIs.append(parent["roi"])
+		
+		if not(cell["name"] in IDs):
+			ROIs.append(cell["roi"])
+			IDs.append(cell["name"])
+			
+		for cell in _getFlattenChildren(cell,cells):
+			if not(cell["name"] in IDs):
+				ROIs.append(cell["roi"])
+				IDs.append(cell["name"])
+		
+	openTrackMate(None,preset_ROIs=ROIs)
+	
+def removeFrame(event):
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+
 	rm = RoiManager.getInstance()
-	if not(rm):
-		print "Open ROI Manager first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open ROI Manager first.")
+	if not(handleROIError()):
 		return
 		
 	slice_index = imp.getCurrentSlice()
@@ -388,7 +524,9 @@ def removeFrame(event):
 	if MODIFY_JSON:
 		fi = imp.getOriginalFileInfo()
 		directory = fi.directory
-		colony_name = directory.split("/")[WHERE_TO_LOOK]
+		colony_name = directory.split("/")[-1]
+		if colony_name == "":
+			colony_name = directory.split("/")[-2]
 		
 		file_name = colony_name+".json"
 		f = open(os.path.join(directory,file_name))
@@ -729,15 +867,14 @@ def removeSporadicCells(cells):
 
 def correctTree(event):
 	imp = WM.getCurrentImage()
-	if not(imp):
-		print "Open an image first."
-		if LOG or LOG_ERROR:
-			IJ.log("Open an image first.")
+	if not(handleIMGError()):
 		return
 		
 	fi = imp.getOriginalFileInfo()
 	directory = fi.directory
-	colony_name = directory.split("/")[WHERE_TO_LOOK]
+	colony_name = directory.split("/")[-1]
+	if colony_name == "":
+		colony_name = directory.split("/")[-2]
 	model_name = imp.getTitle().split(".")[0].split("_")[-1]
 	path = os.path.join(directory,colony_name+"_"+model_name+".xml")
 	if not(os.path.exists(path)):
@@ -914,6 +1051,8 @@ load_button = JButton("Load", actionPerformed=load)
 set_savefolder_button = JButton("Set Save Folder", actionPerformed=setSaveFolder)
 clear_button = JButton("Clear Op", actionPerformed=clearOperations)
 correction_button = JButton("Live repair of cells (EXPERIMENTAL)", actionPerformed=correctTree)
+open_selection_tm_button = JButton("Open TM using ROIs selection", actionPerformed=openTrackMateUsingROIs)
+clean_button = JButton("Clean obsolete ROIs", actionPerformed=cleanROIs)
 
 #Add a button to add a custom selection to ROI
 #Add shortcut keys
@@ -921,8 +1060,12 @@ correction_button = JButton("Live repair of cells (EXPERIMENTAL)", actionPerform
 panel = JPanel()
 panel.add(divide_button)
 panel.add(merge_button) 
-panel.add(remove_frame_button) 
-panel.add(open_trackmate_button)
+panel.add(remove_frame_button)
+panel.add(clean_button)
+
+panel_tm = JPanel()
+panel_tm.add(open_selection_tm_button)
+panel_tm.add(open_trackmate_button)
 
 panel_2 = JPanel()
 panel_2.add(clear_button)
@@ -933,8 +1076,9 @@ panel_2.add(set_savefolder_button)
 panel_3 = JPanel()
 panel_3.add(correction_button)
 
-all_pan = JPanel(GridLayout(3, 1))
+all_pan = JPanel(GridLayout(4, 1))
 all_pan.add(panel)
+all_pan.add(panel_tm)
 all_pan.add(panel_2)
 all_pan.add(panel_3)
 
