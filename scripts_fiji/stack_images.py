@@ -5,12 +5,12 @@ Settings:
 """
 
 #Field(s)
-POSITIONS = ["wt5","wt4","wt3"]
+POSITIONS = ["dt0","dt1","dt2","dt3","dt4","wt0","wt1","wt2","wt3"]
 #Export path
-EXPORT_PATHS = ["/media/irina/5C00325A00323B7A/Zack/nov13/"+POS+"/" for POS in POSITIONS]
+EXPORT_PATHS = ["/media/irina/5C00325A00323B7A/Zack/feb12/"+POS+"/" for POS in POSITIONS]
 
 #list of path in order. The program will take field files from all the src paths. 
-SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/nov13_nice_ss30/steady_state30_"]
+SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/feb12/ini_25_"]
 #Color names
 COLORS = ["phase", "y", "r"]
 #MicroManager channel number, in the same order of COLORS
@@ -18,7 +18,7 @@ MM_NAME= ["000" ,"001" ,"002"]
 #Minimum index for all src path
 IDX_FILE_BEGIN = 1
 #Maximum index for all src path. If there is no folder corresponding to the index -> just put an empty list.
-IDX_FILE_END = 13
+IDX_FILE_END = 12
 
 #------------------------------------------------------
 
@@ -87,11 +87,16 @@ def main(POSITION,EXPORT_PATH):
 				RESULT[COLORS[i]][LAST_INDEX]["times"] = times
 				RESULT[COLORS[i]][LAST_INDEX]["delta_t"] = delta_times
 				RESULT[COLORS[i]][LAST_INDEX]["global_index"] = gii
-				#if you want the dates -> not json serializable
-				#real_times = []
-				#for t in times:
-				#	real_times.append(datetime.fromtimestamp(t))
-				#RESULT[COLORS[i]][j]["times"] = real_times
+				real_times = []
+				for t in times:
+					real_times.append(datetime.fromtimestamp(t).strftime("%m/%d/%Y, %H:%M:%S"))
+				RESULT[COLORS[i]][j]["dates"] = real_times
+				
+				paths = []
+				for t in range(len(times)):
+					paths.append(os.path.join((SRC_PATH[src]+str(j)).split("/")[-1]+"/"+POSITION+"/",files[t]))
+				RESULT[COLORS[i]][j]["paths"] = paths
+				
 				imp = ImagePlus("composite", stack)
 				
 				if(rslt_imp is None):
@@ -107,7 +112,7 @@ def main(POSITION,EXPORT_PATH):
 		gc.collect()
 			
 	with open(EXPORT_PATH+"result.json", "w") as outfile:
-		json.dump(RESULT, outfile)
+		json.dump(RESULT, outfile, indent=2)
 	print("End")
 
 for i in range(len(POSITIONS)):

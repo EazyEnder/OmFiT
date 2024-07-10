@@ -24,11 +24,11 @@ SAVES_DIR = None
 
 #SETTINGS FOR THE REPAIR TOOL
 #Max where the algo will ascend to verify divisions
-MAX_ANCESTOR = 5
+MAX_ANCESTOR = 8
 
 ENABLE_DESCENDANT_VERIF = True
 #Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
-MAX_DESCENDANT = 3
+MAX_DESCENDANT = 4
 
 #Minimum division direction score, if the score is too low then the cell will have a wrong cut so better to manually correct than have a correction that is false.
 MINIMUM_SCORE = 0.8
@@ -120,6 +120,7 @@ def autosave():
 	save(None,suffix=str(OPERATION_COUNTER))
 	LAST_SAVE_OP = OPERATION_COUNTER
 
+#TODO: Improve the load function: also open the movie without previous removed frame instead of using the saved one
 def load(event):
 	filename = IJ.getFilePath("File that'll be loaded")
 	if filename is None:
@@ -173,7 +174,7 @@ def save(event,suffix="manual"):
   	txt = None
   	filename = SAVE_NAME
   	if SAVE_NAME is None:
-  		filename = imp.getTitle()+"_save"
+  		filename = imp.getTitle().split(".")[0]+"_save"
   	
   	if SAVES_DIR is None:
   		fi = imp.getOriginalFileInfo()
@@ -534,7 +535,8 @@ def removeFrame(event):
 		
 		for channel in data.keys():
 			global_idx_offset = 0
-			for index in data[channel].keys():
+			sorted_keys_indexes = argsort([int(nbr) for nbr in (data[channel].keys())])
+			for index in [data[channel].keys()[ski] for ski in sorted_keys_indexes]:
 		 		gii = data[channel][index]["global_index"]
 		 		index_to_keep = []
 		 		for i in range(len(gii)):
@@ -557,7 +559,7 @@ def removeFrame(event):
 	
 		f.close()
 		with open(os.path.join(directory,file_name), "w") as outfile:
-			json.dump(data, outfile)
+			json.dump(data, outfile, indent=2)
 		print("JSON " + file_name + " modified")
 	
 	ite = 0

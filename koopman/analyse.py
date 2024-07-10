@@ -2,7 +2,7 @@
 Import data
 """
 
-COLONY_NAME = "wt2Tc1"
+COLONY_NAME = "wt5c2"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Define a circle region, if the bact is in à the end then we'll keep it, else she'll be removed.
@@ -30,17 +30,18 @@ def plotEllipseMajor(CELLS,cells,ax):
     ax.scatter([CELLS[c]["time"] / (3600*24) for c in cells], [CELLS[c]["ellipse"][0] for c in cells], s=3.)
 
 class Measure():
-    def __init__(self,COLONY_NAME=COLONY_NAME,DATA_DIR=DATA_DIR):
+    def __init__(self,COLONY_NAME=COLONY_NAME,DATA_DIR=None):
         self.COLONY_NAME = COLONY_NAME
-        self.DATA_DIR = DATA_DIR
+        if DATA_DIR is None:
+            self.DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
         file_name = "spots_features.json"
-        f = open(os.path.join(DATA_DIR,file_name))
+        f = open(os.path.join(self.DATA_DIR,file_name))
         self.CELLS = json.load(f)
         f.close()
 
         file_name = "fluo_features.json"
-        f = open(os.path.join(DATA_DIR,file_name))
+        f = open(os.path.join(self.DATA_DIR,file_name))
         self.FLUO = json.load(f)
         f.close()
 
@@ -81,9 +82,9 @@ class Measure():
         if axs.ndim == 1:
             axs = np.array([axs])
 
-        fig.suptitle(COLONY_NAME, fontsize=16)
+        fig.suptitle(self.COLONY_NAME, fontsize=16)
         if len(self.trees) > 1:
-            fig.suptitle(COLONY_NAME +" : Each row is a tree")
+            fig.suptitle(self.COLONY_NAME +" : Each row is a tree")
 
         for i,tree in enumerate(self.trees):
             for traj in tree:
@@ -99,6 +100,7 @@ class Measure():
                 if i == len(self.trees)-1:
                     axs[i,2].set_xlabel("time (days)")
                 axs[i,2].set_ylabel("width (px)")
+                axs[i,2].set_ylim([0,100])
             if i == 0:
                 axs[i,0].set_title("Net Y Fluorescence vs Time")
                 axs[i,1].set_title("Net R Fluorescence vs Time")
@@ -107,6 +109,8 @@ class Measure():
                 axs[i,1].set_xlabel("time (days)")
             axs[i,0].set_ylabel("Y fluo")
             axs[i,1].set_ylabel("R fluo")
+            axs[i,0].set_ylim([0,1000])
+            axs[i,1].set_ylim([0,1000])
 
     def getEndingCells(self):
         ending_cells = []
@@ -130,7 +134,7 @@ class Measure():
         return cells_branch
     
 if __name__ == "__main__":
-    m = Measure(COLONY_NAME,DATA_DIR)
+    m = Measure(COLONY_NAME)
     m.plot()
     plt.show()
     

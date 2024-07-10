@@ -5,17 +5,25 @@ import matplotlib.pyplot as plt
 import numpy.random as rnd
 from random import random
 np.random.seed(41)
+from pydmd import DMD
 
 from analyse import Measure
 
-measure = Measure("wt2Tc1")
+COLONY_NAME = "wt5c2"
 
-traj = measure.trees[0][0]
-FLUO = measure.FLUO
-CELLS = measure.CELLS
+#If this is false, the time axis will just be a list incrementing each 30mins, i.e : [0,0.5,1.,1.5,2.,...]
+ORIGINAL_TIMES_AXIS = True
 
-R = [[FLUO[t]["net_mean"] for t in traj]]
-R = [np.array(R[0])]
+#How many indexes we skip at the begining
+BEGIN_SKIP = 40
+
+#<=1 is no smoothing
+MOVING_AVERAGE_N = 0
+
+def movingAverage(l, n=5):
+    cs=np.cumsum(l, dtype=float)
+    cs[n:]=cs[n:]-cs[:-n]
+    return cs[n-1:]/n
 
 def applyBaseline(t,y,T,R):
     X = R[0]
@@ -47,58 +55,77 @@ def applyBaseline(t,y,T,R):
                 break
     return X
 
-t = [CELLS[t]["time"] / (3600) for t in traj]
-t = np.array(t)
-sorted_indexes = np.argsort(t)
-t = t[sorted_indexes]
-R = [R[0][sorted_indexes]]
-dt = t[1]-t[0]
+measure = Measure()
 
-#R[0] = applyBaseline([2.91,14.83,29.89,40.11,54.63,64.50],[286,286,465,450,507,499],t,R)
-R[0] = applyBaseline([6.7,16,33.9,44.5,54.8,64.6,79.2,99.8,103.9,112.9,125.0,132.1],[446,399,417,409,417,413,421,373,389,333,361,343],t,R)
+trajs = measure.trees[0]
+FLUO = measure.FLUO
+CELLS = measure.CELLS
 
-kws = dict(kind='kalman', alpha=.1)
-gradient = np.array(pk.differentiation.Derivative(**kws)(R[0], t))[:,0]
-R.append(gradient)
+plt.suptitle(COLONY_NAME)
 
-R[1] = R[1]*np.max(R[0])/np.max(R[1])
-R = np.array(R)
-R = R.T
-
-
-fig,axs = plt.subplots(2,1)
-ax1 = axs[0]
+ax1 = plt.subplot(122)
 ax1.axis('equal')
-ax1.set_xlim([-1,1])
-ax2 = axs[1]
 
 ax1.set_xlabel(r'$x_1$')
 ax1.set_ylabel(r'$x_2$')
-ax1.set_title("Mesure")
+ax1.set_title(COLONY_NAME)
 
-from pydmd import DMD
-x1 = R[:,0]
-x2 = R[:,1]
-t = t[:]
-x1 = np.array(x1)
-x2 = np.array(x2)
-        
-ax1.plot(x1,x2)
-ax2.plot(t,x1)
-ax2.plot(t,x2)
+ax2 = plt.subplot(221)
+ax2.set_title(r'$x_1$')
 
-X = np.array([x1,x2]).T
+ax3 = plt.subplot(223)
+ax3.set_title(r'$x_2$')
 
-dmd=DMD(svd_rank=2)
 
-model = pk.Koopman(regressor=dmd)
-model.fit(X, dt=dt)
+mean_imag_eigen = 0
+for traj in trajs:
+    R = [[FLUO[t]["net_mean"] for t in traj]]
+    R = [np.array(R[0])]
+    t = [CELLS[t]["time"] / (3600) for t in traj]
+    t = np.array(t)
+    sorted_indexes = np.argsort(t)
+    t = t[sorted_indexes]
+    if not(ORIGINAL_TIMES_AXIS):
+        t = np.array(list(range(len(t))))*.5
+    R = [R[0][sorted_indexes]]
 
-K = model.A
+    R[0] = applyBaseline(movingAverage(t,n=48),movingAverage(R[0],n=48),t,R)
+    if MOVING_AVERAGE_N > 1:
+        R[0] = movingAverage(R[0],n=MOVING_AVERAGE_N)
+        t = movingAverage(t,n=MOVING_AVERAGE_N)
+    dt = t[1]-t[0]
 
-evals, evecs = np.linalg.eig(K)
-evals_cont = np.log(evals)/dt
-print(evals_cont)
+    kws = dict(kind='kalman', alpha=.1)
+    gradient = np.array(pk.differentiation.Derivative(**kws)(R[0], t))[:,0]
+    R.append(gradient)
 
+    R[1] = R[1]*np.max(R[0])/np.max(R[1])
+    R = np.array(R)
+    R = R.T
+
+    x1 = R[BEGIN_SKIP:,0]
+    x2 = R[BEGIN_SKIP:,1]
+    t = t[BEGIN_SKIP:]
+    x1 = np.array(x1)
+    x2 = np.array(x2)
+            
+    ax1.plot(x1,x2)
+    ax2.plot(t,x1)
+    ax3.plot(t,x2)
+
+    X = np.array([x1,x2]).T
+
+    dmd=DMD(svd_rank=2)
+
+    model = pk.Koopman(regressor=dmd)
+    model.fit(X, dt=dt)
+
+    K = model.A
+
+    evals, evecs = np.linalg.eig(K)
+    evals_cont = np.log(evals)/dt
+    mean_imag_eigen += np.imag(evals_cont[0])
+
+print("Pulsation trouvée: " + str(mean_imag_eigen/len(trajs)))
 plt.show()
 
