@@ -7,7 +7,7 @@ COLONY_NAME = "wt2Tc1"
 OLD_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/time/"+COLONY_NAME.split("c")[0]+".json"
 NEW_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME+"/"+COLONY_NAME+".json"
 
-OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+COLONY_NAME.split("c")[0].replace("T","")+"/"+COLONY_NAME.replace("c","_").replace("T","")+"_y.tif"
+OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+COLONY_NAME.split("c")[0].replace("T","")+"/"+COLONY_NAME.replace("c","_").replace("T","")+"_r.tif"
 EXPORT_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #-----------------------------------------------------------------------------------
@@ -24,15 +24,25 @@ new_data = json.load(f)
 f.close()
 
 def argsort(seq):
-    return sorted(range(len(seq)), key=seq.__getitem__)
+	return sorted(range(len(seq)), key=seq.__getitem__)
+	
+def getOldIndexesFlatten(data):
+	old_indexes = []
+	for channel in data.keys():
+		for index in data[channel].keys():
+			old_indexes.extend(data[channel][index]["old_index"])
+		break
+	return old_indexes
+	
+recent_indexes = getOldIndexesFlatten(new_data)
 
 slices_to_remove = []
 channel = old_data.keys()[0]
 for index in old_data[channel].keys():
-	new_oii = new_data[channel][index]["old_index"]
+	old_oii = old_data[channel][index]["old_index"]
 	old_gii = old_data[channel][index]["global_index"]
-	for i,oii in enumerate(old_data[channel][index]["old_index"]):
-		if not(oii in new_oii):
+	for i,oii in enumerate(old_oii):
+		if not(oii in recent_indexes):
 			slices_to_remove.append(old_gii[i])
 
 if len(slices_to_remove) != 0:

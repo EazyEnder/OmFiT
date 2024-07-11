@@ -9,16 +9,18 @@ from pydmd import DMD
 
 from analyse import Measure
 
-COLONY_NAME = "wt5c2"
+COLONY_NAME = "wt2Tc1"
 
 #If this is false, the time axis will just be a list incrementing each 30mins, i.e : [0,0.5,1.,1.5,2.,...]
 ORIGINAL_TIMES_AXIS = True
 
 #How many indexes we skip at the begining
-BEGIN_SKIP = 40
+BEGIN_SKIP = 0
+#How many indexes we skip at the end
+END_SKIP = 90
 
 #<=1 is no smoothing
-MOVING_AVERAGE_N = 0
+MOVING_AVERAGE_N = 5
 
 def movingAverage(l, n=5):
     cs=np.cumsum(l, dtype=float)
@@ -101,11 +103,11 @@ for traj in trajs:
 
     R[1] = R[1]*np.max(R[0])/np.max(R[1])
     R = np.array(R)
-    R = R.T
 
-    x1 = R[BEGIN_SKIP:,0]
-    x2 = R[BEGIN_SKIP:,1]
-    t = t[BEGIN_SKIP:]
+
+    x1 = R.T[BEGIN_SKIP:len(R[0])-END_SKIP,0]
+    x2 = R.T[BEGIN_SKIP:len(R[1])-END_SKIP,1]
+    t = t[BEGIN_SKIP:len(t)-END_SKIP]
     x1 = np.array(x1)
     x2 = np.array(x2)
             

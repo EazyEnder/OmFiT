@@ -9,7 +9,7 @@ Steps:
 4 - Launch this script, get the json files and have fun...
 
 Think to rename all channels files like wt3c10 not wt3_10
-Not switch Image window during the roi process
+Don't switch Image window during the roi process
 """
 
 COLONY_NAME = "wt2Tc1"

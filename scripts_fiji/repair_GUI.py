@@ -55,8 +55,8 @@ REPARATION_INTERVAL = None
 SAVE_BEFOREANDAFTER_REPA = False
 #--------------------------------------------------------
 
-from javax.swing import JFrame, JButton, JOptionPane, JPanel
-from java.awt import GridLayout
+from javax.swing import JFrame, JButton, JOptionPane, JPanel, JLabel, BorderFactory, SwingConstants
+from java.awt import GridLayout, Color, Font
 from ij import IJ, WindowManager as WM
 import math
 
@@ -100,10 +100,42 @@ def handleROIError():
 			IJ.log("Open ROI Manager first.")
 		return False
 	return True
+	
+def handleSelectionError(m=1,forced=False,rm=None):
+	global SELECTION_BUFFER
+	selection = []
+	if rm is None:
+		rm = RoiManager.getInstance()
+	if len(SELECTION_BUFFER) < m or not(TOGGLE_BUFFER_USE):
+		selection = rm.getSelectedRoisAsArray()
+		if forced:
+			if len(selection) != m or len(selection) > 100:
+				print "You need to select only "+str(m)+" ROIs"
+				if LOG or LOG_ERROR:
+					IJ.log("You need to select only "+str(m)+" ROIs")
+				return None
+		else:
+			if len(selection) < m or len(selection) > 100:
+				print "You need to select "+str(m)+" ROIs at least"
+				if LOG or LOG_ERROR:
+					IJ.log("You need to select "+str(m)+" ROIs at least")
+				return None
+	else:
+		selection = []
+		for roi_index in SELECTION_BUFFER:
+			selection.append(rm.getRoi(roi_index))
+		rm.setSelectedIndexes(SELECTION_BUFFER)
+		print "Warning: Selection buffer used"
+		if LOG:
+			IJ.log("Warning: Selection buffer used")
+	SELECTION_BUFFER = []
+	return selection
 
-
+#Global variables
 OPERATION_COUNTER = 0
 LAST_SAVE_OP = 0
+SELECTION_BUFFER = []
+TOGGLE_BUFFER_USE = True
 
 def autosave():
 	global OPERATION_COUNTER
@@ -137,7 +169,7 @@ def load(event):
 	rm = RoiManager.getInstance()
 	if not rm:
 		rm = RoiManager()
-	rm.reset()
+	rm.reset()	
 	
 	txt = open(filename, "r")
 	for l in txt:
@@ -155,6 +187,7 @@ def load(event):
 		roi.setPosition(int(l.split(":")[0]))
 		rm.addRoi(roi)
 	txt.close()
+	
 	
 def setSaveFolder(event):
 	save_folder = IJ.getDirectory("Save Folder")
@@ -306,11 +339,8 @@ def merge(event):
 	if not(handleROIError()):
 		return
 	
-	selection = rm.getSelectedRoisAsArray()
-	if len(selection) < 2 or len(selection) > 100:
-		print "You need to select 2 ROIs at least"
-		if LOG:
-			IJ.log("You need to select 2 ROIs at least")
+	selection = handleSelectionError(m=2,forced=False)
+	if selection is None:
 		return
 	
 	rm.runCommand('Combine')
@@ -389,11 +419,8 @@ def openTrackMateUsingROIs(event):
 	if not(handleROIError()):
 		return
 		
-	selection = rm.getSelectedRoisAsArray()
-	if len(selection) < 1 or len(selection) > 100:
-		print "You need to select 1 ROI at least"
-		if LOG:
-			IJ.log("You need to select 1 ROI at least")
+	selection = handleSelectionError(m=1,forced=False)
+	if selection is None:
 		return
 	
 	model = Model()
@@ -584,6 +611,84 @@ def clearOperations(event):
 	if LOG:
 		IJ.log("Operations counter reset to 0")
 		
+def removeSelectionFromBuffer(event, label=None):
+	global SELECTION_BUFFER	
+	
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return
+		
+	selection = rm.getSelectedRoisAsArray()
+	if len(selection) < 1 or len(selection) > 100:
+		print "You need to select 1 ROI at least"
+		if LOG:
+			IJ.log("You need to select 1 ROI at least")
+		return
+	
+	indexes_selection = []
+	for roi in selection:
+		indexes_selection.append(rm.getRoiIndex(roi))
+	
+	for i in indexes_selection:
+		if i in SELECTION_BUFFER:
+			SELECTION_BUFFER.remove(i)
+		
+	print(str(indexes_selection)+" removed from selection buffer")
+	if LOG:
+		IJ.log(str(indexes_selection)+" removed from selection buffer")
+		
+	if not(label is None):
+		label.setText(str(SELECTION_BUFFER))
+		
+def addSelectionToBuffer(event, label=None):
+	global SELECTION_BUFFER	
+	
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return
+		
+	selection = rm.getSelectedRoisAsArray()
+	if len(selection) < 1 or len(selection) > 100:
+		print "You need to select 1 ROI at least"
+		if LOG:
+			IJ.log("You need to select 1 ROI at least")
+		return
+	
+	indexes_selection = []
+	for roi in selection:
+		indexes_selection.append(rm.getRoiIndex(roi))
+	
+	for i in indexes_selection:
+		if i in SELECTION_BUFFER:
+			continue
+		SELECTION_BUFFER.append(i)
+		
+	print(str(indexes_selection)+" added to selection buffer")
+	if LOG:
+		IJ.log(str(indexes_selection)+" added to selection buffer")
+		
+	if not(label is None):
+		label.setText(str(SELECTION_BUFFER))
+		
+def clearSelectionBuffer(event, label=None):
+	global SELECTION_BUFFER
+	
+	SELECTION_BUFFER = []
+	if not(label is None):
+		label.setText(str(SELECTION_BUFFER))
+	
+	print("Selection buffer cleared")
+	if LOG:
+		IJ.log("Selection buffer cleared")
+
+def toggleSelectionBuffer(event):
+	button = event.getSource()
+	global TOGGLE_BUFFER_USE
+	
+	TOGGLE_BUFFER_USE = not(TOGGLE_BUFFER_USE)
+	text = "Is used: "+str(TOGGLE_BUFFER_USE)
+	button.setText(text)
+
 #/-------------------CUSTOM REPAIR ALGORITHM--------------------------/
 
 def distTo(p1,p2):
@@ -1043,46 +1148,137 @@ def correctTree(event):
 	return	
 			
 #/--------------INTERFACE------------------/
-frame = JFrame("Repair GUI", visible=True)  
+
+def launchOpe(event,frame,fct):
+	frame.setVisible(False)
+	frame.dispose()
+	fct(event)
+	
+
+def warningFrame(event,function_to_pass):
+	frame = JFrame("Warning", visible=True)
+	frame.setLocation(200,200)
+	panel = JPanel(GridLayout(3, 1))
+	
+	label = JLabel("Warning, this action can be destructive or takes a long time to process.")
+	label2 = JLabel("Are you sure ?")
+	accept = JButton("Yes, anyways, go for it !", actionPerformed=lambda event: launchOpe(event,frame,function_to_pass))
+	
+	panel.add(label)
+	panel.add(label2)
+	panel.add(accept)
+	frame.add(panel)
+	frame.pack() 
+
+frame = JFrame("Repair GUI", visible=True)
+frame.setLocation(100,100)
+
+def createToolTip(info,need,buffer=None,warning=None):
+	string = "<html>"
+	string +='<font size="4.5">'+info+"</font>"
+	string += '<font size="4">'
+	string += "<br /><b>Need</b>:"+need
+	if not(buffer is None):
+		string += "<br /><b>Buffer compatibility: </b>"+str(buffer)
+	if not(warning is None):
+		string += '<br /><font color="red"><b>Warning: </b></font>'+warning+"</html>"
+	string += "</font>"
+	string += "</html>"
+	return string
+
+#Tooltips
+TOOLTIP_DIVIDE = createToolTip("Divide the roi selected using a line","ROI selected & a line drawed using shift+left_mouse","No")
+TOOLTIP_MERGE = createToolTip("Merge the roi selection into one","ROI selection of minimum 2","Yes")
+TOOLTIP_REMOVEFRAME = createToolTip("Remove this frame/slice of the stack","A json file in the img parent folder",warning="Will modify the json file with creating backup")
+TOOLTIP_CLEANOBS = createToolTip("Remove all the rois that don't appear in the stack","/")
+TOOLTIP_ADDTOBUFFER = createToolTip("Add the roi selection to the buffer","ROI selection of minimum 1")
+TOOLTIP_REMOVEFROMBUFFER = createToolTip("Remove the roi selection from the buffer","ROI selection of minimum 1")
+TOOLTIP_TOGGLEBUFFER = createToolTip("Disable/Enable the use of the buffer","/")
+TOOLTIP_CLEANBUFFER = createToolTip("Remove all the rois from the buffer", "/")
+TOOLTIP_OPENTRACKMATE = createToolTip("Open trackmate converting rois to spots","ROI Manager opened with rois")
+TOOLTIP_OPENTRACKMATEROIS = createToolTip("Pre-Tracking/Filtering with selected rois and then open trackmate","ROI selection of minimum 1","Yes")
+TOOLTIP_SAVE = createToolTip("Save the rois to a file", "ROI Manager opened with rois")
+TOOLTIP_LOAD = createToolTip("Load the rois from a file","a file with rois")
+TOOLTIP_LIVEREPAIR = createToolTip("Custom algo that will try to repair bad segmentation","A trackmate xml file",warning="Can take a few dozen of minutes without logs")
+
 divide_button = JButton("Divide", actionPerformed=divide)
-merge_button = JButton("Merge", actionPerformed=merge)  
-remove_frame_button = JButton("Remove frame", actionPerformed=removeFrame)  
+divide_button.setToolTipText(TOOLTIP_DIVIDE)
+merge_button = JButton("Merge", actionPerformed=merge)
+merge_button.setToolTipText(TOOLTIP_MERGE)
+remove_frame_button = JButton("Remove frame", actionPerformed=lambda event: warningFrame(event,removeFrame))
+remove_frame_button.setToolTipText(TOOLTIP_REMOVEFRAME)
 open_trackmate_button = JButton("Open TrackMate", actionPerformed=openTrackMate)
+open_trackmate_button.setToolTipText(TOOLTIP_OPENTRACKMATE)
 save_button = JButton("Save", actionPerformed=save)
+save_button.setToolTipText(TOOLTIP_SAVE)
 load_button = JButton("Load", actionPerformed=load)
+load_button.setToolTipText(TOOLTIP_LOAD)
 set_savefolder_button = JButton("Set Save Folder", actionPerformed=setSaveFolder)
 clear_button = JButton("Clear Op", actionPerformed=clearOperations)
-correction_button = JButton("Live repair of cells (EXPERIMENTAL)", actionPerformed=correctTree)
+correction_button = JButton('<html>Live repair of cells (<font color="red">EXPERIMENTAL</font>)</html>', actionPerformed=lambda event: warningFrame(event,correctTree))
+correction_button.setToolTipText(TOOLTIP_LIVEREPAIR)
 open_selection_tm_button = JButton("Open TM using ROIs selection", actionPerformed=openTrackMateUsingROIs)
+open_selection_tm_button.setToolTipText(TOOLTIP_OPENTRACKMATEROIS)
 clean_button = JButton("Clean obsolete ROIs", actionPerformed=cleanROIs)
+clean_button.setToolTipText(TOOLTIP_CLEANOBS)
 
-#Add a button to add a custom selection to ROI
-#Add shortcut keys
+#Buffer need to have a custom function bcs need to update the label to show the rois selected
+def BufferPanel():
+	all_pan = JPanel(GridLayout(3, 1))
+	panel = JPanel(GridLayout(2, 1))
+	label = "Selection Buffer"
+	panel_label = JLabel("<html><b>" + label + "</b></html>")
+	panel_label.setHorizontalAlignment(SwingConstants.CENTER)
+	
+	buffer_label = JLabel("[]")
+	buffer_label.setHorizontalAlignment(SwingConstants.CENTER)
+	
+	selection_addtobuffer_button = JButton("Add to Buffer", actionPerformed=lambda event: addSelectionToBuffer(event,buffer_label))
+	selection_addtobuffer_button.setToolTipText(TOOLTIP_ADDTOBUFFER)
+	selection_clearbuffer_button = JButton("Clear Buffer", actionPerformed=lambda event: clearSelectionBuffer(event,buffer_label))
+	selection_clearbuffer_button.setToolTipText(TOOLTIP_CLEANBUFFER)
+	selection_toggleuse_button = JButton("Is used: "+str(TOGGLE_BUFFER_USE), actionPerformed= toggleSelectionBuffer)
+	selection_toggleuse_button.setToolTipText(TOOLTIP_TOGGLEBUFFER)
+	selection_removefrombuffer_button = JButton("Remove from Buffer", actionPerformed=lambda event: removeSelectionFromBuffer(event,buffer_label))
+	selection_removefrombuffer_button.setToolTipText(TOOLTIP_REMOVEFROMBUFFER)
+	
+	buttons = [selection_addtobuffer_button,selection_removefrombuffer_button,selection_toggleuse_button,selection_clearbuffer_button]
+	for b in buttons:
+		panel.add(b)
+	all_pan.setBorder(BorderFactory.createLineBorder(Color.black))
+	all_pan.add(panel_label)
+	all_pan.add(buffer_label)
+	all_pan.add(panel)
+	return all_pan
 
-panel = JPanel()
-panel.add(divide_button)
-panel.add(merge_button) 
-panel.add(remove_frame_button)
-panel.add(clean_button)
+def CustomPanel(label,buttons):
+	all_pan = JPanel(GridLayout(2, 1))
+	panel = JPanel()
+	panel_label = JLabel("<html><b>" + label + "</b></html>")
+	panel_label.setHorizontalAlignment(SwingConstants.CENTER)
+	for b in buttons:
+		panel.add(b)
+	all_pan.setBorder(BorderFactory.createLineBorder(Color.black))
+	all_pan.add(panel_label)
+	all_pan.add(panel)
+	return all_pan
 
-panel_tm = JPanel()
-panel_tm.add(open_selection_tm_button)
-panel_tm.add(open_trackmate_button)
+panel = CustomPanel("Operations",[divide_button,merge_button,remove_frame_button,clean_button])
 
-panel_2 = JPanel()
-panel_2.add(clear_button)
-panel_2.add(save_button)
-panel_2.add(load_button)
-panel_2.add(set_savefolder_button)
+panel_buffer = BufferPanel()
 
-panel_3 = JPanel()
-panel_3.add(correction_button)
+panel_tm = CustomPanel("TrackMate",[open_selection_tm_button,open_trackmate_button])
 
-all_pan = JPanel(GridLayout(4, 1))
+panel_saving = CustomPanel("Saving",[clear_button,save_button,load_button,set_savefolder_button])
+
+panel_autorepair = CustomPanel("Auto-Repair",[correction_button])
+
+all_pan = JPanel(GridLayout(5, 1))
 all_pan.add(panel)
+all_pan.add(panel_buffer)
 all_pan.add(panel_tm)
-all_pan.add(panel_2)
-all_pan.add(panel_3)
+all_pan.add(panel_saving)
+all_pan.add(panel_autorepair)
 
 frame.add(all_pan)
 frame.pack() 
