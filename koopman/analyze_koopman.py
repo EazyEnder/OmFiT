@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 
 import numpy.random as rnd
 from random import random
-np.random.seed(41)
 from pydmd import DMD
 
 from analyse import Measure

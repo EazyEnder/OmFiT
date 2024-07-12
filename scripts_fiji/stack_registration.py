@@ -3,11 +3,11 @@ Fiji script: Apply registration
 """
 
 #Field
-POSITION = "wt2"
+POSITION = "wt4"
 #Path to the files
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/nov20/"+POSITION+"/"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/feb12/"+POSITION+"/"
 #Files that we will use / Color names
-COLORS_FILE = ["phase_cropped", "y_cropped", "r_cropped"]
+COLORS_FILE = ["phase", "y", "r"]
 #COLORS_FILE = ["phase_cropped", "y_cropped", "r_cropped"]
 
 #Colors channels order

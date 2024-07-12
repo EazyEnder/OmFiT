@@ -3,14 +3,14 @@ Fiji script: An interface that allows the user to dynamically merge/divide cells
 
 The JSON need to have the same name as the parent folder and be in the same root of the imgs.
 
-To repair a movie, you first need ... a movie. And not a random one, but a uniformised one. 
+To repair a movie, you first need ... a movie. And not a random one, but a good one. 
 That's why the script "import_omnipose_to_trackmate" exists. Launch the script with the settings: OPEN_TRACKMATE = False & ALSO_OPEN_ROI_MANAGER = True.
 """
 
 #Print errors in ImageJ Logger
 LOG_ERROR = True
 #Print errors & infos in ImageJ Logger
-LOG = True
+LOG = False
 
 #Modify the json file when remove slice
 MODIFY_JSON = True
@@ -23,39 +23,42 @@ SAVE_NAME = None
 SAVES_DIR = None
 
 #SETTINGS FOR THE REPAIR TOOL
-#Max where the algo will ascend to verify divisions
-MAX_ANCESTOR = 8
 
-ENABLE_DESCENDANT_VERIF = True
-#Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
-MAX_DESCENDANT = 4
-
-#Minimum division direction score, if the score is too low then the cell will have a wrong cut so better to manually correct than have a correction that is false.
-MINIMUM_SCORE = 0.8
-
-#Is use when we'll find the interface between the two cells (in pixels)
-#Also called epsilon 
-GAP_MAX_RANGE = 10
-
-#How the valid points in the division are weighted to the score.
-#A higher weight means that the score will increase a lot with the number of good points in the new roi created
-WEIGHT_GOOD_SCORE = 1.
-#So for example we can make the weight of wrong points higher in order to find a better fit
-WEIGHT_WRONG_SCORE = 2.5
-
-#To find a direction we'll create a random angle and then, like a markov chain, search the maximum.
-#MAX_TENTATIVES means the nbr of chains (if we find a good fit, we'll dont create new chains)
-#MAX_CHAIN_STEPS is how much steps we'll make in the chain
-MAX_TENTATIVES = 30
-MAX_CHAIN_STEPS = 75
-
-#The division part of the reparation will only try to correct cells in the interval
-REPARATION_INTERVAL = None
-#Save before and after the reparation with a specific suffix to the save file
-SAVE_BEFOREANDAFTER_REPA = False
+SETTINGS_AUTOREPAIR = {
+	#Max where the algo will ascend to verify divisions
+	"MAX_ANCESTOR": 8,
+	
+	"ENABLE_DESCENDANT_VERIF" : True,
+	#Idem but down -> more sensitive. It is better to have errors than false corrections so 1 is good.
+	"MAX_DESCENDANT" : 4,
+	
+	#Minimum division direction score, if the score is too low then the cell will have a wrong cut so better to manually correct than have a correction that is false.
+	"MINIMUM_SCORE" : 0.8,
+	
+	#Is use when we'll find the interface between the two cells (in pixels)
+	#Also called epsilon 
+	"GAP_MAX_RANGE" : 10,
+	
+	#How the valid points in the division are weighted to the score.
+	#A higher weight means that the score will increase a lot with the number of good points in the new roi created
+	"WEIGHT_GOOD_SCORE" : 1.,
+	#So for example we can make the weight of wrong points higher in order to find a better fit
+	"WEIGHT_WRONG_SCORE" : 2.5,
+	
+	#To find a direction we'll create a random angle and then, like a markov chain, search the maximum.
+	#MAX_TENTATIVES means the nbr of chains (if we find a good fit, we'll dont create new chains)
+	#MAX_CHAIN_STEPS is how much steps we'll make in the chain
+	"MAX_TENTATIVES" : 30,
+	"MAX_CHAIN_STEPS" : 75,
+	
+	#The division part of the reparation will only try to correct cells in the interval
+	"REPARATION_INTERVAL" : None,
+	#Save before and after the reparation with a specific suffix to the save file
+	"SAVE_BEFOREANDAFTER_REPA": False
+}
 #--------------------------------------------------------
 
-from javax.swing import JFrame, JButton, JOptionPane, JPanel, JLabel, BorderFactory, SwingConstants
+from javax.swing import JFrame, JButton, JOptionPane, JPanel, JLabel, BorderFactory, SwingConstants, JCheckBox, JTextField
 from java.awt import GridLayout, Color, Font
 from ij import IJ, WindowManager as WM
 import math
@@ -670,6 +673,47 @@ def addSelectionToBuffer(event, label=None):
 	if not(label is None):
 		label.setText(str(SELECTION_BUFFER))
 		
+def addRoiSelectionToBuffer(event, label=None):
+	global SELECTION_BUFFER
+	
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+	
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return		
+	indexes_selection = []
+	roi = imp.getRoi()
+
+	roi_c = roi.clone()
+	if not(type(roi_c) is ShapeRoi):
+		roi_c = ShapeRoi(roi_c)
+	for all_roi in rm.getRoisAsArray():
+		if imp.getCurrentSlice() != all_roi.getPosition():
+			continue
+		roi_index = rm.getRoiIndex(all_roi)
+		if roi_index in indexes_selection:
+			continue
+		roi_cc = roi_c.clone()
+		roi_cc = roi_cc.and(ShapeRoi(all_roi.clone()))
+		roiStat = roi_cc.getStatistics()
+		area = roiStat.area
+		if area > 10:
+			indexes_selection.append(roi_index)
+	
+	for i in indexes_selection:
+		if i in SELECTION_BUFFER:
+			continue
+		SELECTION_BUFFER.append(i)
+		
+	print(str(indexes_selection)+" added to selection buffer")
+	if LOG:
+		IJ.log(str(indexes_selection)+" added to selection buffer")
+	
+	if not(label is None):
+		label.setText(str(SELECTION_BUFFER))
+		
 def clearSelectionBuffer(event, label=None):
 	global SELECTION_BUFFER
 	
@@ -686,7 +730,14 @@ def toggleSelectionBuffer(event):
 	global TOGGLE_BUFFER_USE
 	
 	TOGGLE_BUFFER_USE = not(TOGGLE_BUFFER_USE)
-	text = "Is used: "+str(TOGGLE_BUFFER_USE)
+	text = "<html>Is used: "
+	if TOGGLE_BUFFER_USE:
+		text += "<font color='green'><b>"
+	else:
+		text += "<font color='red'><b>"
+	text += str(TOGGLE_BUFFER_USE)
+	text += "</b></font>"
+	text += "</html>"
 	button.setText(text)
 
 #/-------------------CUSTOM REPAIR ALGORITHM--------------------------/
@@ -728,9 +779,9 @@ def divideUsingLine(inter,dir,pts1,pts2):
 	score = 0
 	for p in new_pts_1:
 		if p in pts1:
-			score += WEIGHT_GOOD_SCORE/ len(pts1)
+			score += SETTINGS_AUTOREPAIR["WEIGHT_GOOD_SCORE"]/ len(pts1)
 		if p in pts2:
-			score -= WEIGHT_WRONG_SCORE/ len(pts2)
+			score -= SETTINGS_AUTOREPAIR["WEIGHT_WRONG_SCORE"]/ len(pts2)
 	
 	return (new_pts_1,new_pts_2,score)
 	
@@ -745,7 +796,7 @@ def computeIntersection(cell1,cell2,frame=0):
 		return
 	
 	#max distance between two points (in pixels):
-	epsilon = GAP_MAX_RANGE
+	epsilon = SETTINGS_AUTOREPAIR["GAP_MAX_RANGE"]
 	
 	points = []
 	for p1 in cell1["roi"]:
@@ -771,14 +822,14 @@ def computeIntersection(cell1,cell2,frame=0):
 	
 
 	precision = 0.1
-	max_steps = MAX_CHAIN_STEPS
+	max_steps = SETTINGS_AUTOREPAIR["MAX_CHAIN_STEPS"]
 	iterations = 0
 	
 	angle = 0
 	_,_,score = divideUsingLine(intersection,(math.cos(angle),math.sin(angle)),cell1["roi"],cell2["roi"])
 	
 	angle_logs = []
-	while iterations < MAX_TENTATIVES and score<1.-precision:
+	while iterations < SETTINGS_AUTOREPAIR["MAX_TENTATIVES"] and score<1.-precision:
 	
 		angle = 2*3.141*random()
 		step = 0
@@ -891,7 +942,7 @@ def forceMerge(cells):
 			continue
 		
 		flag = False
-		while ancestor < MAX_ANCESTOR:
+		while ancestor < SETTINGS_AUTOREPAIR["MAX_ANCESTOR"]:
 			if parent["parent"] is None:
 				flag = True
 				break
@@ -999,7 +1050,7 @@ def correctTree(event):
 	model = reader.getModel()
 	sm = SelectionModel(model)
 	
-	if SAVE_BEFOREANDAFTER_REPA:
+	if SETTINGS_AUTOREPAIR["SAVE_BEFOREANDAFTER_REPA"]:
 		save(None,suffix="before_repa")
 		
 	#convert trackmate spots & tracks to custom objects : "cells"
@@ -1052,7 +1103,7 @@ def correctTree(event):
 			continue
 		cell = new_cells[cellid]
 		
-		if not(REPARATION_INTERVAL is None) and not(cell["frame"]+1 >= REPARATION_INTERVAL[0] and cell["frame"]+1 <=REPARATION_INTERVAL[1]):
+		if not(SETTINGS_AUTOREPAIR["REPARATION_INTERVAL"] is None) and not(cell["frame"]+1 >= SETTINGS_AUTOREPAIR["REPARATION_INTERVAL"][0] and cell["frame"]+1 <=SETTINGS_AUTOREPAIR["REPARATION_INTERVAL"][1]):
 			continue
 		
 		if cell["parent"] is None:
@@ -1068,7 +1119,7 @@ def correctTree(event):
 		last_up_id = cell["parent"]
 		ancestor=2
 		flag = False
-		while(ancestor < MAX_ANCESTOR and not(flag)):
+		while(ancestor < SETTINGS_AUTOREPAIR["MAX_ANCESTOR"] and not(flag)):
 			if(len(up_chi) < 2):
 				if(parent_used["parent"] is None):
 				    flag = True
@@ -1103,10 +1154,10 @@ def correctTree(event):
 			continue
 
 
-		if ENABLE_DESCENDANT_VERIF:
+		if SETTINGS_AUTOREPAIR["ENABLE_DESCENDANT_VERIF"]:
 			child_used = cell
 			descendant = 0
-			while(descendant < MAX_DESCENDANT):
+			while(descendant < SETTINGS_AUTOREPAIR["MAX_DESCENDANT"]):
 				if len(child_used["children"]) >= 2:
 					break
 				descendant += 1
@@ -1142,7 +1193,7 @@ def correctTree(event):
 	if LOG:
 		IJ.log("Repair done")
 	
-	if SAVE_BEFOREANDAFTER_REPA:
+	if SETTINGS_AUTOREPAIR["SAVE_BEFOREANDAFTER_REPA"]:
 		save(None,suffix="after_repa")
 
 	return	
@@ -1168,12 +1219,76 @@ def warningFrame(event,function_to_pass):
 	panel.add(label2)
 	panel.add(accept)
 	frame.add(panel)
-	frame.pack() 
+	frame.pack()
+	
+def _settingsCheckBox(event,settings,s_key,obj=None):
+	box = None
+	if event:
+		box = event.getSource()
+	if obj:
+		box = obj
+	settings[s_key] = box.isSelected()
+	
+def _settingsTextField(event,settings,s_key,obj=None):
+	field = None
+	if event:
+		field = event.getSource()
+	if obj:
+		field = obj
+	s_type = type(settings[s_key])
+	if s_type is int:
+		settings[s_key] = int(field.getText())
+	elif s_type is float:
+		settings[s_key] = float(field.getText())
+		
+def _settingsConfirm(event,objects,settings,frame):
+	for s_key, obj in objects:
+		if type(obj) is JCheckBox:
+			_settingsCheckBox(None,settings,s_key,obj)
+		elif type(obj) is JTextField:
+			_settingsTextField(None,settings,s_key,obj)
+			
+	frame.setVisible(False)
+	frame.dispose()
+	
+def settingsFrame(event,settings):
+	frame = JFrame("Settings", visible=True)
+	frame.setLocation(200,200)
+	panel = JPanel(GridLayout(len(settings.keys())+2, 1))
+	
+	text = "<html>"+"<font color='red'><b>-!-</b></font>"+"To see the purpose of each settings <b>AND</b> to have access to all the settings,<br /> look at the comments at the script beginning."+"</html>"
+	panel.add(JLabel(text))
+	
+	objects = []
+	for s_key in settings:
+		s = settings[s_key]
+		if s is None:
+			continue
+		s_type = type(s)
+		
+		in_panel = JPanel(GridLayout(1,2))
+		in_panel.add(JLabel("<html><b>"+s_key+" : </b></html>"))
+		if s_type is bool:
+			box = JCheckBox("", actionPerformed=lambda event: _settingsCheckBox(event,settings,s_key))
+			box.setSelected(s)
+			objects.append((s_key,box))
+			in_panel.add(box)
+		if s_type is int or s_type is float:
+			field = JTextField(3, actionPerformed=lambda event: _settingsTextField(event,settings,s_key))
+			field.setText(str(s))
+			objects.append((s_key,field))
+			in_panel.add(field)
+		panel.add(in_panel)
+	confirm_button = JButton("Confirm", actionPerformed=lambda event: _settingsConfirm(event,objects,settings,frame))
+	confirm_button.setHorizontalAlignment(SwingConstants.CENTER)
+	panel.add(confirm_button)
+	frame.add(panel)
+	frame.pack()
 
 frame = JFrame("Repair GUI", visible=True)
 frame.setLocation(100,100)
 
-def createToolTip(info,need,buffer=None,warning=None):
+def createToolTip(info,need="/",buffer=None,warning=None):
 	string = "<html>"
 	string +='<font size="4.5">'+info+"</font>"
 	string += '<font size="4">'
@@ -1190,16 +1305,18 @@ def createToolTip(info,need,buffer=None,warning=None):
 TOOLTIP_DIVIDE = createToolTip("Divide the roi selected using a line","ROI selected & a line drawed using shift+left_mouse","No")
 TOOLTIP_MERGE = createToolTip("Merge the roi selection into one","ROI selection of minimum 2","Yes")
 TOOLTIP_REMOVEFRAME = createToolTip("Remove this frame/slice of the stack","A json file in the img parent folder",warning="Will modify the json file with creating backup")
-TOOLTIP_CLEANOBS = createToolTip("Remove all the rois that don't appear in the stack","/")
+TOOLTIP_CLEANOBS = createToolTip("Remove all the rois that don't appear in the stack")
 TOOLTIP_ADDTOBUFFER = createToolTip("Add the roi selection to the buffer","ROI selection of minimum 1")
 TOOLTIP_REMOVEFROMBUFFER = createToolTip("Remove the roi selection from the buffer","ROI selection of minimum 1")
-TOOLTIP_TOGGLEBUFFER = createToolTip("Disable/Enable the use of the buffer","/")
-TOOLTIP_CLEANBUFFER = createToolTip("Remove all the rois from the buffer", "/")
+TOOLTIP_TOGGLEBUFFER = createToolTip("Disable/Enable the use of the buffer")
+TOOLTIP_CLEANBUFFER = createToolTip("Remove all the rois from the buffer")
 TOOLTIP_OPENTRACKMATE = createToolTip("Open trackmate converting rois to spots","ROI Manager opened with rois")
 TOOLTIP_OPENTRACKMATEROIS = createToolTip("Pre-Tracking/Filtering with selected rois and then open trackmate","ROI selection of minimum 1","Yes")
 TOOLTIP_SAVE = createToolTip("Save the rois to a file", "ROI Manager opened with rois")
 TOOLTIP_LOAD = createToolTip("Load the rois from a file","a file with rois")
-TOOLTIP_LIVEREPAIR = createToolTip("Custom algo that will try to repair bad segmentation","A trackmate xml file",warning="Can take a few dozen of minutes without logs")
+TOOLTIP_LIVEREPAIR = createToolTip("Custom algo that will try to repair bad segmentation","A trackmate xml file",warning="Can take a few dozen of minutes without sending any logs")
+TOOLTIP_LIVREREPAIR_SETTINGS = createToolTip("Open a frame with all the algorithm settings")
+TOOL_TIP_ADDUSINGROITOBUFFER = createToolTip("Add all rois in the selected roi to the buffer","ROI Selected")
 
 divide_button = JButton("Divide", actionPerformed=divide)
 divide_button.setToolTipText(TOOLTIP_DIVIDE)
@@ -1221,11 +1338,13 @@ open_selection_tm_button = JButton("Open TM using ROIs selection", actionPerform
 open_selection_tm_button.setToolTipText(TOOLTIP_OPENTRACKMATEROIS)
 clean_button = JButton("Clean obsolete ROIs", actionPerformed=cleanROIs)
 clean_button.setToolTipText(TOOLTIP_CLEANOBS)
+livrerepair_settings_button = JButton("LR Settings", actionPerformed=lambda event: settingsFrame(event,SETTINGS_AUTOREPAIR))
+livrerepair_settings_button.setToolTipText(TOOLTIP_LIVREREPAIR_SETTINGS)
 
 #Buffer need to have a custom function bcs need to update the label to show the rois selected
 def BufferPanel():
 	all_pan = JPanel(GridLayout(3, 1))
-	panel = JPanel(GridLayout(2, 1))
+	panel = JPanel(GridLayout(2, 3))
 	label = "Selection Buffer"
 	panel_label = JLabel("<html><b>" + label + "</b></html>")
 	panel_label.setHorizontalAlignment(SwingConstants.CENTER)
@@ -1237,12 +1356,22 @@ def BufferPanel():
 	selection_addtobuffer_button.setToolTipText(TOOLTIP_ADDTOBUFFER)
 	selection_clearbuffer_button = JButton("Clear Buffer", actionPerformed=lambda event: clearSelectionBuffer(event,buffer_label))
 	selection_clearbuffer_button.setToolTipText(TOOLTIP_CLEANBUFFER)
-	selection_toggleuse_button = JButton("Is used: "+str(TOGGLE_BUFFER_USE), actionPerformed= toggleSelectionBuffer)
+	buffer_text = "<html>Is used: "
+	if TOGGLE_BUFFER_USE:
+		buffer_text += "<font color='green'><b>"
+	else:
+		buffer_text += "<font color='red'><b>"
+	buffer_text += str(TOGGLE_BUFFER_USE)
+	buffer_text += "</b></font>"
+	buffer_text += "</html>"
+	selection_toggleuse_button = JButton(buffer_text, actionPerformed= toggleSelectionBuffer)
 	selection_toggleuse_button.setToolTipText(TOOLTIP_TOGGLEBUFFER)
 	selection_removefrombuffer_button = JButton("Remove from Buffer", actionPerformed=lambda event: removeSelectionFromBuffer(event,buffer_label))
 	selection_removefrombuffer_button.setToolTipText(TOOLTIP_REMOVEFROMBUFFER)
+	selection_addusingrect_button = JButton("Add using Roi", actionPerformed=lambda event: addRoiSelectionToBuffer(event,buffer_label))
+	selection_addusingrect_button.setToolTipText(TOOL_TIP_ADDUSINGROITOBUFFER)
 	
-	buttons = [selection_addtobuffer_button,selection_removefrombuffer_button,selection_toggleuse_button,selection_clearbuffer_button]
+	buttons = [selection_addtobuffer_button,selection_removefrombuffer_button,selection_toggleuse_button,selection_clearbuffer_button,selection_addusingrect_button]
 	for b in buttons:
 		panel.add(b)
 	all_pan.setBorder(BorderFactory.createLineBorder(Color.black))
@@ -1271,7 +1400,7 @@ panel_tm = CustomPanel("TrackMate",[open_selection_tm_button,open_trackmate_butt
 
 panel_saving = CustomPanel("Saving",[clear_button,save_button,load_button,set_savefolder_button])
 
-panel_autorepair = CustomPanel("Auto-Repair",[correction_button])
+panel_autorepair = CustomPanel("Auto-Repair",[correction_button,livrerepair_settings_button])
 
 all_pan = JPanel(GridLayout(5, 1))
 all_pan.add(panel)
@@ -1282,3 +1411,4 @@ all_pan.add(panel_autorepair)
 
 frame.add(all_pan)
 frame.pack() 
+frame.setSize(int(frame.getSize().width*0.8),int(frame.getSize().height*0.8))
