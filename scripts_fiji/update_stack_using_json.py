@@ -2,13 +2,13 @@
 Fiji script: Update stack following the history between the stack's json & the newest/updated json
 """
 
-COLONY_NAME = "wt2Tc1"
+COLONY_NAME = "wt4c2"
 
-OLD_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/time/"+COLONY_NAME.split("c")[0]+".json"
-NEW_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME+"/"+COLONY_NAME+".json"
+OLD_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/feb12/wt4/"+COLONY_NAME.split("c")[0]+".json"
+NEW_JSON_PATH = "/media/irina/5C00325A00323B7A/Zack/feb12/wt4/exportedcolonies/"+COLONY_NAME+"/"+COLONY_NAME+".json"
 
-OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30-25_nov20-22_2023/"+COLONY_NAME.split("c")[0].replace("T","")+"/"+COLONY_NAME.replace("c","_").replace("T","")+"_r.tif"
-EXPORT_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
+OLD_TIFF = "/media/irina/5C00325A00323B7A/Zack/feb12/"+COLONY_NAME.split("c")[0].replace("T","")+"/"+COLONY_NAME.replace("c","_").replace("T","")+"_y.tif"
+EXPORT_DIR = "/media/irina/5C00325A00323B7A/Zack/feb12/wt4/exportedcolonies/"+COLONY_NAME
 
 #-----------------------------------------------------------------------------------
 

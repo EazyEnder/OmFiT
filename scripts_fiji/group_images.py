@@ -6,13 +6,13 @@ from math import floor
 from ij.gui import Roi
 from java.awt import Rectangle
   
-sourceDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/raws/"
-targetDir = "/media/irina/5C00325A00323B7A/Zack/data/PreTraining/outputs/"
+sourceDir = "/media/irina/5C00325A00323B7A/Zack/data/needmasks/"
+targetDir = "/media/irina/5C00325A00323B7A/Zack/data/batchs/"
 
 #!!!! 8-BITS SO MAXIMUM: 255 TOTAL MASKS, i.e FOR THE 4 IMAGES TOGETHER IN THE BATCH
 
 IS_MASKS = False
-ITERATION = 1
+ITERATION = 0
 
 #Pair with other dataset or just one batch is one data set
 PAIR = False

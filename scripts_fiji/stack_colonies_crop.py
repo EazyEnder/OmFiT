@@ -3,9 +3,9 @@ Fiji script: Crop and divide each colony into stacks (using crop's csv file)
 """
 
 #Field
-POSITION = "wt5"
+POSITION = "wt4"
 #Path to the files
-DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/data/nice_ss30_nov13-20_2023/"+POSITION+"/"
+DIR_PATH = "/media/irina/5C00325A00323B7A/Zack/feb12/"+POSITION+"/"
 #Name of the tiff file that will be used
 FILE_NAME = "registered_arranged"
 

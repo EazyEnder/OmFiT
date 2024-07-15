@@ -56,7 +56,7 @@ def applyBaseline(t,y,T,R):
                 break
     return X
 
-measure = Measure()
+measure = Measure(COLONY_NAME)
 
 trajs = measure.trees[0]
 FLUO = measure.FLUO

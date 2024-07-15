@@ -10,7 +10,7 @@ That's why the script "import_omnipose_to_trackmate" exists. Launch the script w
 #Print errors in ImageJ Logger
 LOG_ERROR = True
 #Print errors & infos in ImageJ Logger
-LOG = False
+LOG = True
 
 #Modify the json file when remove slice
 MODIFY_JSON = True
