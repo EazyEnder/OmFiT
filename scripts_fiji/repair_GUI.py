@@ -22,8 +22,15 @@ SAVE_NAME = None
 #If None you'll need to have an img opened & the saves will be in the same folder of the img
 SAVES_DIR = None
 
-#SETTINGS FOR THE REPAIR TOOL
+SETTINGS_OPERATIONS = {
+	#Minimum intersection area, if inter is higher than this then the roi is deleted (in pixels)
+	"DELETE_MINIMUM_INTERSECTION": 10,
+	#The delete tool will work only between the min and max frame, -1 means end
+	"DELETE_INTERVAL_MIN": 0,
+	"DELETE_INTERVAL_MAX": -1
+}
 
+#SETTINGS FOR THE REPAIR TOOL
 SETTINGS_AUTOREPAIR = {
 	#Max where the algo will ascend to verify divisions
 	"MAX_ANCESTOR": 8,
@@ -260,6 +267,24 @@ def cleanROIs(event):
 	print "Clean "+str(delete)+" ROIs"
 	if LOG:
 		IJ.log("Clean "+str(delete)+" ROIs")
+		
+def add(event):
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+	
+	rm = RoiManager.getInstance()
+	if not rm:
+		rm = RoiManager()
+	user_roi = imp.getRoi()
+
+	roi = user_roi.clone()
+		
+	slice_index = imp.getCurrentSlice()
+	roi.setPosition(slice_index)
+	
+	rm.addRoi(roi)
+	
   
 def divide(event):  
 
@@ -354,6 +379,42 @@ def merge(event):
 	print "ROIs merged"
 	autosave()
 	
+def delete(event):	
+	imp = WM.getCurrentImage()
+	if not(handleIMGError()):
+		return
+	
+	rm = RoiManager.getInstance()
+	if not(handleROIError()):
+		return		
+		
+	indexes_selection = []
+	roi = imp.getRoi()
+
+	roi_c = roi.clone()
+	if not(type(roi_c) is ShapeRoi):
+		roi_c = ShapeRoi(roi_c)
+	for all_roi in rm.getRoisAsArray():
+		roi_index = rm.getRoiIndex(all_roi)
+		if roi_index in indexes_selection:
+			continue
+		if all_roi.getPosition() < SETTINGS_OPERATIONS["DELETE_INTERVAL_MIN"]:
+			continue
+		if SETTINGS_OPERATIONS["DELETE_INTERVAL_MAX"] != -1 and all_roi.getPosition() > SETTINGS_OPERATIONS["DELETE_INTERVAL_MAX"]:
+			continue
+		roi_cc = roi_c.clone()
+		roi_cc = roi_cc.and(ShapeRoi(all_roi.clone()))
+		roiStat = roi_cc.getStatistics()
+		area = roiStat.area
+		if area > SETTINGS_OPERATIONS["DELETE_MINIMUM_INTERSECTION"]:
+			indexes_selection.append(roi_index)
+	
+	delete = 0	
+	for i in indexes_selection:
+		rm.select(i-delete)
+		rm.runCommand(imp,"Delete")
+		delete += 1
+			
 def openTrackMate(event, preset_ROIs=None):
 	imp = WM.getCurrentImage()
 	if not(handleIMGError()):
@@ -1316,7 +1377,10 @@ TOOLTIP_SAVE = createToolTip("Save the rois to a file", "ROI Manager opened with
 TOOLTIP_LOAD = createToolTip("Load the rois from a file","a file with rois")
 TOOLTIP_LIVEREPAIR = createToolTip("Custom algo that will try to repair bad segmentation","A trackmate xml file",warning="Can take a few dozen of minutes without sending any logs")
 TOOLTIP_LIVREREPAIR_SETTINGS = createToolTip("Open a frame with all the algorithm settings")
-TOOL_TIP_ADDUSINGROITOBUFFER = createToolTip("Add all rois in the selected roi to the buffer","ROI Selected")
+TOOL_TIP_ADDUSINGROITOBUFFER = createToolTip("Add all rois in the selected roi to the buffer","User selection")
+TOOL_TIP_ADDROI = createToolTip("Add the current selection to the ROI Manager","User selection")
+TOOL_TIP_DELETE = createToolTip("Delete all the rois in the user selection from the ROI Manager","User selection")
+TOOL_TIP_OPSETTINGS = createToolTip("Open a frame with all the operations settings")
 
 divide_button = JButton("Divide", actionPerformed=divide)
 divide_button.setToolTipText(TOOLTIP_DIVIDE)
@@ -1336,10 +1400,16 @@ correction_button = JButton('<html>Live repair of cells (<font color="red">EXPER
 correction_button.setToolTipText(TOOLTIP_LIVEREPAIR)
 open_selection_tm_button = JButton("Open TM using ROIs selection", actionPerformed=openTrackMateUsingROIs)
 open_selection_tm_button.setToolTipText(TOOLTIP_OPENTRACKMATEROIS)
-clean_button = JButton("Clean obsolete ROIs", actionPerformed=cleanROIs)
+clean_button = JButton("Clean", actionPerformed=cleanROIs)
 clean_button.setToolTipText(TOOLTIP_CLEANOBS)
 livrerepair_settings_button = JButton("LR Settings", actionPerformed=lambda event: settingsFrame(event,SETTINGS_AUTOREPAIR))
 livrerepair_settings_button.setToolTipText(TOOLTIP_LIVREREPAIR_SETTINGS)
+addroi_button = JButton("Add", actionPerformed=add)
+addroi_button.setToolTipText(TOOL_TIP_ADDROI)
+delete_button = JButton("Delete", actionPerformed=lambda event: warningFrame(event,delete))
+delete_button.setToolTipText(TOOL_TIP_DELETE)
+operations_settings_button = JButton("OP Settings", actionPerformed=lambda event: settingsFrame(event,SETTINGS_OPERATIONS))
+operations_settings_button.setToolTipText(TOOL_TIP_OPSETTINGS)
 
 #Buffer need to have a custom function bcs need to update the label to show the rois selected
 def BufferPanel():
@@ -1382,7 +1452,7 @@ def BufferPanel():
 
 def CustomPanel(label,buttons):
 	all_pan = JPanel(GridLayout(2, 1))
-	panel = JPanel()
+	panel = JPanel(GridLayout(3, 1))
 	panel_label = JLabel("<html><b>" + label + "</b></html>")
 	panel_label.setHorizontalAlignment(SwingConstants.CENTER)
 	for b in buttons:
@@ -1392,7 +1462,7 @@ def CustomPanel(label,buttons):
 	all_pan.add(panel)
 	return all_pan
 
-panel = CustomPanel("Operations",[divide_button,merge_button,remove_frame_button,clean_button])
+panel = CustomPanel("Operations",[divide_button,merge_button,remove_frame_button,clean_button,addroi_button,delete_button,operations_settings_button])
 
 panel_buffer = BufferPanel()
 

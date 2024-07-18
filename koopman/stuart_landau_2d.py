@@ -27,7 +27,7 @@ def StuartLandau(x,a,b):
     return np.array([x1dot,x2dot])
 N = 2000
 
-NTraj = 100
+NTraj = 1
 tmax = 80
 t = np.linspace(0, tmax, N)
 x = 2*rnd.random([2, NTraj])-1
@@ -112,6 +112,7 @@ for i,traj in enumerate(R):
     evals, evecs = np.linalg.eig(K)
     evals_cont = np.log(evals)/dt
     print(evals_cont)
+    print(evecs)
 
     ax3.scatter(D[i], evals_cont.real[0], marker='+')
 

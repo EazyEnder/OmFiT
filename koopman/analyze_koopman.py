@@ -19,7 +19,7 @@ BEGIN_SKIP = 0
 END_SKIP = 90
 
 #<=1 is no smoothing
-MOVING_AVERAGE_N = 5
+MOVING_AVERAGE_N = 0
 
 def movingAverage(l, n=5):
     cs=np.cumsum(l, dtype=float)
