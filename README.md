@@ -1,6 +1,3 @@
-# OCTracker
+# Omnipose Fiji Tools
 
-On-working mini-software to use a **tracking method** *(Intersection Over Union)* applied to **cell segmentation** using **Omnipose**.
-The goal is to intelligently correct cells found using omnipose.
-
-*Actually the best option is to use **TrackMate** on Fiji. This project is just a test to find/try correction methods.*
+On-working fiji scripts and externals tools to import Omnipose results in Fiji with correction/mask repair tools. 
