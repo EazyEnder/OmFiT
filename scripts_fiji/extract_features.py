@@ -10,9 +10,10 @@ Steps:
 
 Think to rename all channels files like wt3c10 not wt3_10
 Don't switch Image window during the roi process
+If you have a file not found error, verifify if the disk is bounted, or verify if the two fluo movies exists in the folder with a name like wt1c2
 """
 
-COLONY_NAME = "wt5c5"
+COLONY_NAME = "wt3Tc1"
 #Need to have a json file with the name of colony in the folder
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
@@ -21,11 +22,12 @@ MODEL_NAME = "continuity1706"
 
 EXPORT_DIR = DATA_DIR
 
-USE_FILES_IF_EXIST = True
+#If the json files exists, we'll use it -> so we compute only the tracks
+USE_FILES_IF_EXIST = False
 
 
 #x0,y0,x1,y1 - DON'T FORGET TO CHANGE IT
-BACKGROUND_RECT = [0,0,68,42]
+BACKGROUND_RECT = [0,276,124,276+58]
 
 SAVE_BACKGROUND_METADATA = True
 

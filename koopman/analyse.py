@@ -2,7 +2,7 @@
 Import data
 """
 
-COLONY_NAME = "wt2Tc1"
+COLONY_NAME = "wt5c2"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Define a circle region, if the bact is in à the end then we'll keep it, else she'll be removed.
@@ -12,8 +12,20 @@ KEEP_DISTANCE = 0
 #Each "independant" tree (~different ancestor) has his own row in the figure
 DIVIDE_PER_TREE = True
 #Effect only if divide per tree is False; if this is false, each branch is a Tree
-COMBINE_INTO_ONE_TREE = True
+COMBINE_INTO_ONE_TREE = False
 
+#Smoothing using moving average method
+SMOOTH=0
+
+#Apply a baseline using moving average, if this is <=0 -> no baseline applied
+BASELINE_Y = 48
+BASELINE_R = 0
+#If this is true, the baseline will be ploted instead of applied
+DRAW_BASELINE = False
+
+#Plot or scatter
+LINE_STYLE = True
+LINE_STYLE_ELLIPSE = False
 
 PLOT_ELLIPSE = True
 
@@ -22,12 +34,80 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plotFluo(CELLS,FLUO,traj,ax,ax_r):
-        ax.scatter([CELLS[t]["time"] / (24*3600) for t in traj], [FLUO[t]["net_mean"] for t in traj], s=3.)
-        ax_r.scatter([CELLS[t]["time"] / (24*3600) for t in traj], [FLUO[t]["net_mean_r"] for t in traj], s=3.)
+def movingAverage(l, n=5):
+    cs=np.cumsum(l, dtype=float)
+    cs[n:]=cs[n:]-cs[:-n]
+    return cs[n-1:]/n
+
+def applyBaseline(t,y,T,R):
+    X = R[0]
+    last_t = 0
+    last_y = [y[0]]
+
+    coefs = []
+    for i in range(len(y)):
+        y1 = y[i]
+        t1 = t[i]
+        coefs.append((y1 - last_y[-1]) / (t1 - last_t))
+        last_t = t1
+        last_y.append(y1)
+    coefs.append(0.)
+
+    int_time = []
+    for j in range(len(t)+1):
+        t_left = 0
+        if j > 0:
+            t_left = t[j-1]
+        t_right = T[-1]
+        if j < len(t):
+            t_right = t[j]
+        int_time.append((t_left,t_right))
+    for i in range(len(T)):
+        for j,(tl,tr) in enumerate(int_time):
+            if T[i] >= tl and T[i] <= tr:
+                X[i] = X[i]-(coefs[j]*(T[i]-tl)+last_y[j])
+                break
+    return X
+
+def plotFluo(CELLS,FLUO,traj,ax,ax_r,baseline_Y=BASELINE_Y,baseline_R=BASELINE_R,draw_baseline=DRAW_BASELINE):
+        Fy = [FLUO[t]["net_mean"] for t in traj]
+        Fr = [FLUO[t]["net_mean_r"] for t in traj]
+        t = [CELLS[t]["time"] / (24*3600) for t in traj]
+        if SMOOTH > 1:
+            Fy = movingAverage(Fy,n=SMOOTH)
+            Fr = movingAverage(Fr,n=SMOOTH)
+            t = movingAverage(t,n=SMOOTH)
+        ax.set_ylim([0,1000])
+        ax_r.set_ylim([0,1000])
+        if baseline_Y > 0:
+            mty = movingAverage(t,n=baseline_Y)
+            mFy = movingAverage(Fy,n=baseline_Y)
+            if draw_baseline:
+                ax.plot(mty,mFy,color="black")
+            else:
+                ax.set_ylim([-500,500])
+                Fy = applyBaseline(mty,mFy,t,[Fy])
+        if baseline_R > 0:
+            mtr = movingAverage(t,n=baseline_R)
+            mFr = movingAverage(Fy,n=baseline_R)
+            if draw_baseline:
+                ax_r.plot(mtr,mFr,color="black")
+            else:
+                ax_r.set_ylim([-500,500])
+                Fr = applyBaseline(mtr,mFr,t,[Fr])
+            
+        if LINE_STYLE:
+            ax.plot(t, Fy)
+            ax_r.plot(t, Fr)
+        else:
+            ax.scatter(t, Fy, s=3.)
+            ax_r.scatter(t, Fr, s=3.)
 
 def plotEllipseMajor(CELLS,cells,ax):
-    ax.scatter([CELLS[c]["time"] / (3600*24) for c in cells], [CELLS[c]["ellipse"][0] for c in cells], s=3.)
+    if not(LINE_STYLE_ELLIPSE):
+        ax.scatter([CELLS[c]["time"] / (3600*24) for c in cells], [CELLS[c]["ellipse"][0] for c in cells], s=3.)
+    else:
+        ax.plot([CELLS[c]["time"] / (3600*24) for c in cells], [CELLS[c]["ellipse"][0] for c in cells])
 
 class Measure():
     def __init__(self,COLONY_NAME=COLONY_NAME,DATA_DIR=None):
@@ -110,8 +190,6 @@ class Measure():
                 axs[i,1].set_xlabel("time (days)")
             axs[i,0].set_ylabel("Y fluo")
             axs[i,1].set_ylabel("R fluo")
-            axs[i,0].set_ylim([0,1000])
-            axs[i,1].set_ylim([0,1000])
 
     def getEndingCells(self):
         ending_cells = []
