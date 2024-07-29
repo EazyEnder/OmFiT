@@ -5,7 +5,7 @@ On-working fiji scripts and externals tools to import Omnipose results in Fiji w
 
 - **FIJI Scripts** in the folder: "scripts_fiji"
 
-- **Read results** in "koopman" folder even if koopman doesn't work (:
+- **Read results** in "analyse" folder
 
 *And a lot of deprecated stuff, like a custom IoU tracker*
 
