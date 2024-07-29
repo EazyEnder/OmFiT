@@ -9,7 +9,7 @@ POSITIONS = ["dt0","dt1","dt2","dt3","dt4","wt0","wt1","wt2","wt3"]
 #Export path
 EXPORT_PATHS = ["/media/irina/5C00325A00323B7A/Zack/feb12/"+POS+"/" for POS in POSITIONS]
 
-#list of path in order. The program will take field files from all the src paths. 
+#list of path in order. The program will take field files from all the src paths.  For example with .../ini_25_ , the script will search in the folders: ini_25_1, ini_25,2 ... 
 SRC_PATH = ["/media/irina/LIPhy-INFO/cyano/feb12/ini_25_"]
 #Color names
 COLORS = ["phase", "y", "r"]
@@ -17,8 +17,11 @@ COLORS = ["phase", "y", "r"]
 MM_NAME= ["000" ,"001" ,"002"]
 #Minimum index for all src path
 IDX_FILE_BEGIN = 1
-#Maximum index for all src path. If there is no folder corresponding to the index -> just put an empty list.
+#Maximum index for all src path. If there is no folder corresponding to the index -> this will just put an empty list.
 IDX_FILE_END = 12
+
+#if the export folder doesn't exist, the script will create it
+CREATE_FOLDER = True
 
 #------------------------------------------------------
 
@@ -31,12 +34,14 @@ import gc
 
 from datetime import datetime
 
-#file_time = os.path.getmtime("")
-
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
 
 def main(POSITION,EXPORT_PATH):
+
+	if CREATE_FOLDER and not(os.path.exists(EXPORT_PATH)):
+		os.mkdir(EXPORT_PATH)
+		
 
 	RESULT = {}
 	for i in range(len(COLORS)):
