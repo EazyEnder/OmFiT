@@ -2,7 +2,7 @@
 Import data
 """
 
-COLONY_NAME = "wt5c2"
+COLONY_NAME = "wt3Tc1"
 DATA_DIR = "/media/irina/5C00325A00323B7A/Zack/data/export/"+COLONY_NAME
 
 #Define a circle region, if the bact is in à the end then we'll keep it, else she'll be removed.
@@ -21,7 +21,7 @@ SMOOTH=0
 BASELINE_Y = 48
 BASELINE_R = 0
 #If this is true, the baseline will be ploted instead of applied
-DRAW_BASELINE = False
+DRAW_BASELINE = True
 
 #Plot or scatter
 LINE_STYLE = True
