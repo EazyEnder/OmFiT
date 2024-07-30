@@ -940,7 +940,7 @@ def computeIntersection(cell1,cell2,frame=0):
 	print("("+str(cell1["frame"]+1)+"->"+str(frame+1)+" | "+str(intersection)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
 	if LOG:
 		IJ.log("("+str(cell1["frame"]+1)+"->"+str(frame+1)+" | "+str(intersection)+") Div direction found after "+str(iterations)+" iterations and a score of "+str(score))
-	if score < MINIMUM_SCORE:
+	if score < SETTINGS_AUTOREPAIR["MINIMUM_SCORE"]:
 		print("  |>  Score too low -> Cell division aborded")
 		if LOG or LOG_ERROR:
 			IJ.log("  |>  Score too low -> Cell division aborded")
