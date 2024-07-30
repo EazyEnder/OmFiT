@@ -146,6 +146,7 @@ OPERATION_COUNTER = 0
 LAST_SAVE_OP = 0
 SELECTION_BUFFER = []
 TOGGLE_BUFFER_USE = True
+BUFFER_LABEL = None
 
 def autosave():
 	global OPERATION_COUNTER
@@ -267,6 +268,9 @@ def cleanROIs(event):
 	print "Clean "+str(delete)+" ROIs"
 	if LOG:
 		IJ.log("Clean "+str(delete)+" ROIs")
+	
+	autosave()
+	clearSelectionBuffer()
 		
 def add(event):
 	imp = WM.getCurrentImage()
@@ -284,6 +288,9 @@ def add(event):
 	roi.setPosition(slice_index)
 	
 	rm.addRoi(roi)
+	
+	clearSelectionBuffer()
+	autosave()
 	
   
 def divide(event):  
@@ -357,6 +364,7 @@ def divide(event):
 	print "ROI divided"
   
 	autosave()
+	clearSelectionBuffer()
   
 def merge(event):
 	imp = WM.getCurrentImage()
@@ -378,6 +386,7 @@ def merge(event):
 		IJ.log("ROIs merged")
 	print "ROIs merged"
 	autosave()
+	clearSelectionBuffer()
 	
 def delete(event):	
 	imp = WM.getCurrentImage()
@@ -414,6 +423,8 @@ def delete(event):
 		rm.select(i-delete)
 		rm.runCommand(imp,"Delete")
 		delete += 1
+	clearSelectionBuffer()
+	autosave()
 			
 def openTrackMate(event, preset_ROIs=None):
 	imp = WM.getCurrentImage()
@@ -665,6 +676,7 @@ def removeFrame(event):
 		IJ.log("Frame "+str(slice_index)+" deleted")
 	print("Frame "+str(slice_index)+" deleted")
 	autosave()
+	clearSelectionBuffer()
 
 def clearOperations(event):
 	global OPERATION_COUNTER
@@ -702,7 +714,7 @@ def removeSelectionFromBuffer(event, label=None):
 		IJ.log(str(indexes_selection)+" removed from selection buffer")
 		
 	if not(label is None):
-		label.setText(str(SELECTION_BUFFER))
+		label.setText(str([sb+1 for sb in SELECTION_BUFFER]))
 		
 def addSelectionToBuffer(event, label=None):
 	global SELECTION_BUFFER	
@@ -732,7 +744,7 @@ def addSelectionToBuffer(event, label=None):
 		IJ.log(str(indexes_selection)+" added to selection buffer")
 		
 	if not(label is None):
-		label.setText(str(SELECTION_BUFFER))
+		label.setText(str([sb+1 for sb in SELECTION_BUFFER]))
 		
 def addRoiSelectionToBuffer(event, label=None):
 	global SELECTION_BUFFER
@@ -773,14 +785,16 @@ def addRoiSelectionToBuffer(event, label=None):
 		IJ.log(str(indexes_selection)+" added to selection buffer")
 	
 	if not(label is None):
-		label.setText(str(SELECTION_BUFFER))
+		label.setText(str([sb+1 for sb in SELECTION_BUFFER]))
 		
-def clearSelectionBuffer(event, label=None):
+def clearSelectionBuffer(event=None, label=None):
 	global SELECTION_BUFFER
 	
 	SELECTION_BUFFER = []
-	if not(label is None):
-		label.setText(str(SELECTION_BUFFER))
+	if label is None:
+		global BUFFER_LABEL
+		label = BUFFER_LABEL
+	label.setText(str([sb+1 for sb in SELECTION_BUFFER]))
 	
 	print("Selection buffer cleared")
 	if LOG:
@@ -1419,12 +1433,13 @@ def BufferPanel():
 	panel_label = JLabel("<html><b>" + label + "</b></html>")
 	panel_label.setHorizontalAlignment(SwingConstants.CENTER)
 	
-	buffer_label = JLabel("[]")
-	buffer_label.setHorizontalAlignment(SwingConstants.CENTER)
+	global BUFFER_LABEL
+	BUFFER_LABEL = JLabel("[]")
+	BUFFER_LABEL.setHorizontalAlignment(SwingConstants.CENTER)
 	
-	selection_addtobuffer_button = JButton("Add to Buffer", actionPerformed=lambda event: addSelectionToBuffer(event,buffer_label))
+	selection_addtobuffer_button = JButton("Add to Buffer", actionPerformed=lambda event: addSelectionToBuffer(event,BUFFER_LABEL))
 	selection_addtobuffer_button.setToolTipText(TOOLTIP_ADDTOBUFFER)
-	selection_clearbuffer_button = JButton("Clear Buffer", actionPerformed=lambda event: clearSelectionBuffer(event,buffer_label))
+	selection_clearbuffer_button = JButton("Clear Buffer", actionPerformed=lambda event: clearSelectionBuffer(event,BUFFER_LABEL))
 	selection_clearbuffer_button.setToolTipText(TOOLTIP_CLEANBUFFER)
 	buffer_text = "<html>Is used: "
 	if TOGGLE_BUFFER_USE:
@@ -1436,9 +1451,9 @@ def BufferPanel():
 	buffer_text += "</html>"
 	selection_toggleuse_button = JButton(buffer_text, actionPerformed= toggleSelectionBuffer)
 	selection_toggleuse_button.setToolTipText(TOOLTIP_TOGGLEBUFFER)
-	selection_removefrombuffer_button = JButton("Remove from Buffer", actionPerformed=lambda event: removeSelectionFromBuffer(event,buffer_label))
+	selection_removefrombuffer_button = JButton("Remove from Buffer", actionPerformed=lambda event: removeSelectionFromBuffer(event,BUFFER_LABEL))
 	selection_removefrombuffer_button.setToolTipText(TOOLTIP_REMOVEFROMBUFFER)
-	selection_addusingrect_button = JButton("Add using Roi", actionPerformed=lambda event: addRoiSelectionToBuffer(event,buffer_label))
+	selection_addusingrect_button = JButton("Add using Roi", actionPerformed=lambda event: addRoiSelectionToBuffer(event,BUFFER_LABEL))
 	selection_addusingrect_button.setToolTipText(TOOL_TIP_ADDUSINGROITOBUFFER)
 	
 	buttons = [selection_addtobuffer_button,selection_removefrombuffer_button,selection_toggleuse_button,selection_clearbuffer_button,selection_addusingrect_button]
@@ -1446,7 +1461,7 @@ def BufferPanel():
 		panel.add(b)
 	all_pan.setBorder(BorderFactory.createLineBorder(Color.black))
 	all_pan.add(panel_label)
-	all_pan.add(buffer_label)
+	all_pan.add(BUFFER_LABEL)
 	all_pan.add(panel)
 	return all_pan
 

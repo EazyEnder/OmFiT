@@ -17,8 +17,8 @@ print(BASE_DIR)
 
 class OmniposeRun():
 
-    def __init__(self,custom_model=None,saveMasks:bool=False,saveOutlines:bool=True):
-        self.model_name = "bact_phase_omni"
+    def __init__(self,model=None,custom_model=None,saveMasks:bool=False,saveOutlines:bool=True):
+        self.model_name = model
         #,pretrained_model=os.path.join(BASE_DIR,'custom_model_1000')
         #model_type=self.model_name
         if not(custom_model is None):

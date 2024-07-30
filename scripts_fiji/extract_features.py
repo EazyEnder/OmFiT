@@ -32,13 +32,14 @@ BACKGROUND_RECT = [0,276,124,276+58]
 SAVE_BACKGROUND_METADATA = True
 
 #for spots features:
-SAVE_SPOTS_FEATURES = True
+SAVE_SPOTS_FEATURES = False
 SAVE_SPOTS_AS_TXT_FILE = False
 SAVE_SPOTS_AS_JSON_FILE = True
 
 #for fluo features:
 SAVE_FLUO_FEATURES = True
-SAVE_FLUO_AS_JSON_FILE = True
+SAVE_FLUO_AS_JSON_FILE = False
+SAVE_FLUO_AS_TXT_FILE = True
 
 SAVE_TRACKS = True
 
@@ -64,6 +65,12 @@ if USE_FILES_IF_EXIST:
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
+
+def line_builder(array):
+	string = ""
+	for a in array:
+		string += str(a) + " "
+	return string+"\n"
 
 if not(FILES_EXISTS):
 	
@@ -158,12 +165,6 @@ if not(FILES_EXISTS):
 			with open(os.path.join(EXPORT_DIR,"spots_features.json"), "w") as outfile:
 					json.dump(cells_simp, outfile, indent=2)
 		
-		def line_builder(array):
-			string = ""
-			for a in array:
-				string += str(a) + " "
-			return string+"\n"
-		
 		if SAVE_SPOTS_AS_TXT_FILE:
 			main_txt = open(os.path.join(EXPORT_DIR,"spots_features.txt"),"w")
 			prefix = ["ID"]
@@ -251,28 +252,40 @@ if not(FILES_EXISTS):
 	for cell_id in cells.keys():
 		cell = cells[cell_id]
 		raw_sum = 0
+		raw_sum_sq = 0
 		ip = ist.getProcessor(cell["frame"]+1)
 		for pixel in cell["pixels"]:
 			x = pixel[0]
 			y = pixel[1]
-			raw_sum += ip.getValue(int(x),int(y))
+			px_val = ip.getValue(int(x),int(y))
+			raw_sum += px_val
+			raw_sum_sq += px_val*px_val
 		raw_mean = raw_sum / len(cell["pixels"])
 		net_mean = raw_mean - means[cell["frame"]]
+		raw_var = raw_sum_sq / len(cell["pixels"]) - raw_mean*raw_mean
 		
 		raw_sum_r = 0
+		raw_sum_sq_r = 0
 		ip_r = ist_r.getProcessor(cell["frame"]+1)
 		for pixel in cell["pixels"]:
 			x = pixel[0]
 			y = pixel[1]
-			raw_sum_r += ip_r.getValue(int(x),int(y))
+			px_val = ip_r.getValue(int(x),int(y))
+			raw_sum_r += px_val
+			raw_sum_sq_r += px_val*px_val
 		raw_mean_r = raw_sum_r / len(cell["pixels"])
 		net_mean_r = raw_mean_r - means_r[cell["frame"]]
+		raw_var_r = raw_sum_sq_r / len(cell["pixels"]) - raw_mean_r*raw_mean_r
 		
 		fluo_cells[cell_id] = {
 			"raw_mean": raw_mean,
 			"net_mean": net_mean,
 			"raw_mean_r":raw_mean_r,
-			"net_mean_r":net_mean_r
+			"net_mean_r":net_mean_r,
+			"raw_sum": raw_sum,
+			"raw_sum_r": raw_sum_r,
+			"raw_var": raw_var,
+			"raw_var_r": raw_var_r
 		}
 	print("Fluo intensity & features computed")
 			
@@ -281,7 +294,26 @@ if not(FILES_EXISTS):
 			fluo_cells_simp = copy.deepcopy(fluo_cells)
 			with open(os.path.join(EXPORT_DIR,"fluo_features.json"), "w") as outfile:
 					json.dump(fluo_cells_simp, outfile, indent=2)
-	print("Fluo features saved")
+						
+		if SAVE_FLUO_AS_TXT_FILE:
+			main_txt = open(os.path.join(EXPORT_DIR,"fluo_features.txt"),"w")
+			prefix = ["ID"]
+			rslt_matrix = []
+			for index in fluo_cells.keys():
+				values = [index]
+				for key in fluo_cells[index].keys():
+					if "roi" in key:
+						continue
+					if not(key in prefix):
+						prefix.append(key)
+					values.append(fluo_cells[index][key])
+				rslt_matrix.append(values)
+			print rslt_matrix
+			main_txt.write(line_builder(prefix))
+			for line in rslt_matrix:
+				main_txt.write(line_builder(line))
+			main_txt.close()
+		print("Fluo features saved")
 	
 else:
 	f = open(os.path.join(EXPORT_DIR,"spots_features.json"))
